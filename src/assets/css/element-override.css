@@ -1,0 +1,79 @@
+.el-message .el-message__badge {
+  display: none !important;
+}
+
+.el-message {
+  position: fixed !important;
+  top: 32px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 9999 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  min-width: 300px;
+  padding: 12px 26px;
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 50px; /* 胶囊圆角 */
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.12);
+  border: none !important;
+
+  transition: opacity 0.3s, transform 0.4s, top 0.4s;
+}
+
+.el-message .el-message__icon,
+.el-message .el-icon,
+.el-message svg {
+  width: 18px !important;
+  height: 18px !important;
+  font-size: 18px !important;
+  margin-right: 10px !important;
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+}
+
+.el-message .el-message__content {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin: 0 !important;
+  line-height: 1.4;
+}
+
+.el-message--success {
+  background-color: #F0F9EB !important;
+}
+.el-message--success .el-message__content {
+  color: #67C23A !important;
+}
+.el-message--success .el-message__icon,
+.el-message--success svg {
+  color: #67C23A !important;
+  fill: #67C23A !important;
+}
+
+.el-message--warning {
+  background-color: #FDF6EC !important;
+}
+.el-message--warning .el-message__content {
+  color: #E6A23C !important;
+}
+.el-message--warning .el-message__icon,
+.el-message--warning svg {
+  color: #E6A23C !important;
+  fill: #E6A23C !important;
+}
+
+.el-message--error {
+  background-color: #FEF0F0 !important;
+}
+.el-message--error .el-message__content {
+  color: #F56C6C !important;
+}
+.el-message--error .el-message__icon,
+.el-message--error svg {
+  color: #F56C6C !important;
+  fill: #F56C6C !important;
+}
