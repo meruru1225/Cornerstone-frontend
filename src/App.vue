@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import Auth from './components/Auth.vue'
+// 删除了对 Auth.vue 的直接引用
 </script>
 
 <template>
-  <Auth/>
+  <router-view />
 </template>
 
 <style>
-body {
+html, body, #app {
   margin: 0;
   padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  overflow: hidden;
 }
 </style>

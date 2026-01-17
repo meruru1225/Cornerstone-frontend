@@ -12,9 +12,16 @@
     "@vuepic/vue-datepicker": "^12.1.0",
     "axios": "^1.13.2",
     "element-plus": "^2.13.1",
-    "vue": "^3.5.24"
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.0",
+    "pinia": "^3.0.4",
+    "uuid": "^13.0.0",
+    "vue": "^3.5.24",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@types/highlight.js": "^9.12.4",
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.1",
     "@vue/tsconfig": "^0.8.1",
