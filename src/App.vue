@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 删除了对 Auth.vue 的直接引用
+// 删除了对 AuthModal.vue 的直接引用
 </script>
 
 <template>

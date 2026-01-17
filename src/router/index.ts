@@ -4,8 +4,6 @@ import {useUserStore} from '../stores/user'
 // 引入布局和页面
 import MainLayout from '../layouts/MainLayout.vue'
 import HomeView from '../views/HomeView.vue'
-// TODO 登录页抽成组件
-import AuthView from '../components/Auth.vue'
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -40,11 +38,6 @@ const router = createRouter({
                     component: () => import('../views/HomeView.vue') // 暂时占位
                 }
             ]
-        },
-        {
-            path: '/auth',
-            name: 'auth',
-            component: AuthView
         }
     ]
 })
