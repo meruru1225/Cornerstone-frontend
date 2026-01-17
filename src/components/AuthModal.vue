@@ -4,11 +4,15 @@ import { ElMessage } from 'element-plus'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
 import { zhCN } from 'date-fns/locale'
+import { useUserStore } from '../stores/user'
+import { registerApi, sendCodeApi, forgetPasswordApi } from '../api/auth'
 
 const props = defineProps({
   modelValue: Boolean
 })
 const emit = defineEmits(['update:modelValue'])
+
+const userStore = useUserStore()
 
 const close = () => {
   emit('update:modelValue', false)
@@ -63,26 +67,46 @@ const toggleMode = (mode: Mode) => {
   formData.smsCode = ''
 }
 
-const sendCode = () => {
+const sendCode = async () => {
   if (!formData.account) return showMsg('warning', '请输入手机号')
   if (!/^1[3-9]\d{9}$/.test(formData.account)) return showMsg('warning', '请输入正确的手机号')
+  
   if (countdown.value > 0) return
-  showMsg('success', '验证码已发送: 571849')
-  countdown.value = 60
-  const timer = setInterval(() => {
-    countdown.value--
-    if (countdown.value <= 0) clearInterval(timer)
-  }, 1000)
+
+  try {
+    await sendCodeApi(formData.account)
+    showMsg('success', '验证码已发送')
+    countdown.value = 60
+    const timer = setInterval(() => {
+      countdown.value--
+      if (countdown.value <= 0) clearInterval(timer)
+    }, 1000)
+  } catch (error: any) {
+    showMsg('error', error.message || '发送失败，请稍后重试')
+  }
 }
 
 const handleSubmit = async () => {
   if (currentMode.value === 'login') {
     if (!formData.account) return showMsg('warning', '请输入账号')
+    // 如果是密码登录，检查密码
+    if (loginMethod.value === 'password' && !formData.password) return showMsg('warning', '请输入密码')
+    // 如果是验证码登录，检查验证码
+    if (loginMethod.value === 'sms' && !formData.smsCode) return showMsg('warning', '请输入验证码')
+
     isLoading.value = true
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      await userStore.login({
+        account: formData.account,
+        password: formData.password,
+        smsCode: formData.smsCode,
+        method: loginMethod.value
+      })
+      
       showMsg('success', '欢迎回来！登录成功')
       close()
+    } catch (error: any) {
+      showMsg('error', error.message || '登录失败')
     } finally {
       isLoading.value = false
     }
@@ -94,11 +118,18 @@ const handleSubmit = async () => {
     if (!formData.smsCode) return showMsg('warning', '请输入验证码')
     if (!formData.password) return showMsg('warning', '请输入新密码')
     if (formData.password !== formData.confirmPassword) return showMsg('error', '两次密码输入不一致')
+
     isLoading.value = true
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      await forgetPasswordApi({
+        phone: formData.account,
+        sms_code: formData.smsCode,
+        new_password: formData.password
+      })
       showMsg('success', '密码重置成功，请重新登录')
       toggleMode('login')
+    } catch (error: any) {
+      showMsg('error', error.message || '重置失败')
     } finally {
       isLoading.value = false
     }
@@ -112,13 +143,28 @@ const handleSubmit = async () => {
       registerStep.value = 2
       return
     }
+
     if (registerStep.value === 2) {
-      if (!formData.nickname) return showMsg('warning', '给自己起个好听的名字吧')
+      if (!formData.nickname) {
+        return showMsg('warning', '给自己起个好听的名字吧')
+      }
+
       isLoading.value = true
       try {
-        await new Promise(resolve => setTimeout(resolve, 1500))
+        await registerApi({
+          username: formData.account,
+          password: formData.password,
+          nickname: formData.nickname,
+          gender: formData.gender,
+          // birthday: formData.birthday ? formData.birthday.toISOString().split('T')[0] : undefined, // 如果组件返回 Date 对象，需要格式化
+          birthday: formData.birthday ? new Date(formData.birthday).toISOString().split('T')[0] : undefined,
+          region: formData.region,
+          bio: formData.bio
+        })
         showMsg('success', '注册成功！欢迎加入 Cornerstone')
         toggleMode('login')
+      } catch (error: any) {
+        showMsg('error', error.message || '注册失败')
       } finally {
         isLoading.value = false
       }
@@ -223,7 +269,7 @@ const prevStep = () => {
                       <svg class="icon" viewBox="0 0 24 24">
                         <path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                       </svg>
-                      <input type="text" v-model="formData.account" placeholder="请输入手机号"/>
+                      <input type="text" v-model="formData.account" :placeholder="loginMethod === 'sms' ? '请输入手机号' : '请输入账号/手机号'"/>
                     </div>
                     <div class="input-item sms-mode" v-if="(currentMode === 'login' && loginMethod === 'sms') || currentMode === 'forget'">
                       <svg class="icon" viewBox="0 0 24 24">

@@ -1,5 +1,16 @@
 <script setup lang="ts">
-// 删除了对 AuthModal.vue 的直接引用
+import { onMounted } from 'vue'
+import { useUserStore } from './stores/user'
+
+const userStore = useUserStore()
+
+onMounted(async () => {
+  // 应用启动时尝试恢复登录状态
+  await userStore.fetchUserInfo()
+  if (userStore.isLoggedIn) {
+    await userStore.fetchUserRoles()
+  }
+})
 </script>
 
 <template>

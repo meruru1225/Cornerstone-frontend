@@ -3,6 +3,7 @@ import { ref, onMounted, nextTick } from 'vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
+import {converseAgentApi} from "../api/agent.ts";
 
 interface Message {
   role: 'user' | 'assistant'
@@ -154,51 +155,41 @@ const handleSendMessage = async () => {
   await nextTick()
   chatScrollContainer.value?.scrollTo({ top: chatScrollContainer.value.scrollHeight, behavior: 'smooth' })
 
+  let isFirstChunk = true
+
   try {
-    const response = await fetch('/api/agent/converse', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, chat_id: chatId.value })
-    })
-
-    const body = response.body
-    if (!body) throw new Error('流传输异常')
-
-    const reader = body.getReader()
-    const decoder = new TextDecoder()
-    let isFirstChunk = true
-
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done) break
-      const chunk = decoder.decode(value, { stream: true })
-      const lines = chunk.split('\n')
-
-      for (const line of lines) {
-        let rawLine = line.trim()
-        if (rawLine.startsWith('data:')) rawLine = rawLine.replace(/^data:\s*/, '')
-        if (!rawLine || rawLine === '[DONE]' || rawLine === 'EOF') continue
-
-        try {
-          const data = JSON.parse(rawLine)
-          if (data.type === 'chat_id') {
-            chatId.value = data.content
-          } else if (data.type === 'message') {
-            if (isFirstChunk && (data.content === '\n' || data.content === '\\n')) {
+    await converseAgentApi(
+      { question, chat_id: chatId.value },
+      {
+        onMessage: (rawLine) => {
+          try {
+            const data = JSON.parse(rawLine)
+            if (data.type === 'chat_id') {
+              chatId.value = data.content
+            } else if (data.type === 'message') {
+              if (isFirstChunk && (data.content === '\n' || data.content === '\\n')) {
+                isFirstChunk = false
+                return
+              }
               isFirstChunk = false
-              continue
+              const target = messages.value[assistantMsgIndex]
+              if (target) {
+                target.content += data.content
+              }
+              chatScrollContainer.value?.scrollTo({ top: chatScrollContainer.value.scrollHeight })
             }
-            isFirstChunk = false
-            const target = messages.value[assistantMsgIndex]
-            if (target) {
-              target.content += data.content
-            }
-            chatScrollContainer.value?.scrollTo({ top: chatScrollContainer.value.scrollHeight })
-          }
-        } catch (e) {}
+          } catch (e) {}
+        },
+        onFinish: async () => {
+          await saveCurrentChat()
+        },
+        onError: (error) => {
+          console.error(error)
+          const target = messages.value[assistantMsgIndex]
+          if (target) target.content = '服务响应异常，请重试。'
+        }
       }
-    }
-    await saveCurrentChat()
+    )
   } catch (error) {
     const target = messages.value[assistantMsgIndex]
     if (target) target.content = '服务响应异常，请重试。'

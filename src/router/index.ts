@@ -38,6 +38,10 @@ const router = createRouter({
                     component: () => import('../views/HomeView.vue') // 暂时占位
                 }
             ]
+        },
+        {
+            path: '/admin',
+            component: () => import('../layouts/AdminLayout.vue')
         }
     ]
 })

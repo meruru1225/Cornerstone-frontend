@@ -1,0 +1,92 @@
+import request from './request'
+
+export interface MetricItem {
+  date: string
+  value: number
+}
+
+export interface UserMetricData {
+  user_id: number
+  days: number
+  fans: MetricItem[]
+}
+
+export interface UserContentMetricData {
+  user_id: number
+  days: number
+  likes: MetricItem[]
+  comments: MetricItem[]
+  collects: MetricItem[]
+  views: MetricItem[]
+}
+
+export interface PostMetricData {
+  post_id: number
+  days: number
+  likes: MetricItem[]
+  comments: MetricItem[]
+  collects: MetricItem[]
+  views: MetricItem[]
+}
+
+/**
+ * 用户指标7日数据
+ */
+export function getUserMetric7d() {
+  return request({
+    url: '/metric/user/7d',
+    method: 'get'
+  })
+}
+
+/**
+ * 用户指标30日数据
+ */
+export function getUserMetric30d() {
+  return request({
+    url: '/metric/user/30d',
+    method: 'get'
+  })
+}
+
+/**
+ * 内容指标7日数据（用户维度）
+ */
+export function getUserContentMetric7d() {
+  return request({
+    url: '/metric/user-content/7d',
+    method: 'get'
+  })
+}
+
+/**
+ * 内容指标30日数据（用户维度）
+ */
+export function getUserContentMetric30d() {
+  return request({
+    url: '/metric/user-content/30d',
+    method: 'get'
+  })
+}
+
+/**
+ * 内容指标7日指标（帖子维度）
+ * @param postId 帖子ID
+ */
+export function getPostMetric7d(postId: number | string) {
+  return request({
+    url: `/metric/post/7d/${postId}`,
+    method: 'get'
+  })
+}
+
+/**
+ * 内容指标30日指标（帖子维度）
+ * @param postId 帖子ID
+ */
+export function getPostMetric30d(postId: number | string) {
+  return request({
+    url: `/metric/post/30d/${postId}`,
+    method: 'get'
+  })
+}
