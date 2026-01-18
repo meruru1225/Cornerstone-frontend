@@ -12,7 +12,7 @@ export interface MediaItem {
 
 // 提交时的媒体资源接口 (兼容后端文档中的 typo: mime_typpe)
 export interface PostMediaPayload {
-  mime_typpe?: string // 后端文档字段名为 mime_typpe
+  mime_type?: string
   url: string
   width?: number
   height?: number
@@ -32,6 +32,12 @@ export interface PostItem {
   user_id: number
   nickname: string
   avatar_url: string
+  like_count?: number
+  collect_count?: number
+  view_count?: number
+  comment_count?: number
+  is_liked?: boolean
+  is_collected?: boolean
 }
 
 // 分页参数接口

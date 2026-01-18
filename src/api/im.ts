@@ -63,6 +63,21 @@ export interface SyncParams {
   last_seq?: number | string
 }
 
+// Ticket 响应接口
+export interface TicketResponse {
+  ticket: string
+}
+
+/**
+ * 获取WebSocket签名
+ */
+export function getWebSocketTicketApi() {
+  return request<{ code: number, message: string, data: TicketResponse }>({
+    url: '/im/ticket',
+    method: 'get'
+  })
+}
+
 /**
  * 发送消息
  */
@@ -138,14 +153,29 @@ export class IMWebSocket {
     this.url = url.startsWith('ws') ? url : `${protocol}//${host}${url}`
   }
 
-  public connect() {
+  public async connect() {
     this.isIntentionalClose = false
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
         return;
     }
 
     try {
-      this.ws = new WebSocket(this.url)
+      // 获取 ticket
+      // request 返回的是 Promise<any> 或 Promise<AxiosResponse>，这里我们根据 interceptor 知道它返回 response.data
+      const res: any = await getWebSocketTicketApi()
+      const ticket = res.data?.ticket
+
+      if (!ticket) {
+        console.error('Failed to get WebSocket ticket:', res)
+        throw new Error('No ticket in response')
+      }
+      
+      // 拼接 ticket 到 URL
+      const wsUrl = this.url.includes('?') 
+        ? `${this.url}&ticket=${ticket}`
+        : `${this.url}?ticket=${ticket}`
+
+      this.ws = new WebSocket(wsUrl)
       
       this.ws.onopen = () => {
         console.log('IM WebSocket Connected')
@@ -199,14 +229,16 @@ export class IMWebSocket {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data))
     } else {
-      console.warn('IM WebSocket not open, cannot send message')
+        console.warn('WebSocket is not open. Message not sent.')
     }
   }
 
   private startHeartbeat() {
     this.stopHeartbeat()
     this.heartbeatInterval = setInterval(() => {
-      this.send({ type: 'ping' })
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping' }))
+      }
     }, 30000) // 30s 心跳
   }
 
@@ -218,10 +250,11 @@ export class IMWebSocket {
   }
 
   private reconnect() {
-    if (this.reconnectTimeout) return
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout)
+    }
     this.reconnectTimeout = setTimeout(() => {
-      console.log('Reconnecting IM WebSocket...')
-      this.reconnectTimeout = null
+      console.log('Attempting to reconnect IM WebSocket...')
       this.connect()
     }, 3000) // 3s 重连
   }

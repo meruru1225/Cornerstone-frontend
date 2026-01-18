@@ -1,5 +1,5 @@
 import request from './request'
-import type { MediaItem, PostMediaPayload } from './post'
+import type { PostMediaPayload } from './post'
 
 // 评论媒体信息接口
 export interface CommentMediaItem {
@@ -56,7 +56,7 @@ export interface CreateCommentParams {
   post_id: number | string
   parent_id?: number | string // 0 for root comment
   content: string
-  media?: PostMediaPayload[] // 使用 Post 模块中定义的提交结构，字段名为 mime_typpe
+  media_info?: PostMediaPayload[] // 使用 Post 模块中定义的提交结构
 }
 
 // 举报参数

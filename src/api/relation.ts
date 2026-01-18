@@ -11,6 +11,10 @@ export interface RelationPageParams {
   page_size?: number
 }
 
+export interface CountResponse {
+  count: number
+}
+
 // 获取用户粉丝列表
 export function getFollowersApi(params: RelationPageParams) {
   return request({
@@ -21,9 +25,14 @@ export function getFollowersApi(params: RelationPageParams) {
 }
 
 // 获取用户粉丝数量
-export function getFollowersCountApi() {
-  return request({
-    url: '/user-relation/followers/count',
+// 如果传入 userId，则获取该用户的粉丝数量；否则获取当前登录用户的粉丝数量
+export function getFollowersCountApi(userId?: number | string) {
+  const url = userId 
+    ? `/user-relation/followers/count/${userId}`
+    : '/user-relation/followers/count'
+    
+  return request<CountResponse>({
+    url,
     method: 'get'
   })
 }
@@ -38,17 +47,22 @@ export function getFollowingsApi(params: RelationPageParams) {
 }
 
 // 获取用户关注数量
-export function getFollowingsCountApi() {
-  return request({
-    url: '/user-relation/followings/count',
+// 如果传入 userId，则获取该用户的关注数量；否则获取当前登录用户的关注数量
+export function getFollowingsCountApi(userId?: number | string) {
+  const url = userId
+    ? `/user-relation/followings/count/${userId}`
+    : '/user-relation/followings/count'
+
+  return request<CountResponse>({
+    url,
     method: 'get'
   })
 }
 
 // 获取用户是否关注某个用户
 export function checkIsFollowApi(followingId: number | string) {
-  return request({
-    url: `/user-relation/isFollow/${followingId}`,
+  return request<boolean>({
+    url: `/user-relation/isfollow/${followingId}`,
     method: 'get'
   })
 }
