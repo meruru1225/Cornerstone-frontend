@@ -3,6 +3,7 @@ import {ref, computed} from 'vue'
 import {type PostItem} from '../api/post'
 import {likePostApi, ActionType} from '../api/post-action'
 import {ElMessage} from 'element-plus'
+import { usePostCacheStore } from '../stores/postCache' // 引入 store
 
 const props = defineProps<{
   post: PostItem
@@ -11,6 +12,20 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'click', postId: number): void
 }>()
+
+const cacheStore = usePostCacheStore()
+
+let timer: ReturnType<typeof setTimeout> | null = null
+
+const handleMouseEnter = () => {
+  timer = setTimeout(() => {
+    cacheStore.prefetch(props.post.id)
+  }, 50)
+}
+
+const handleMouseLeave = () => {
+  if (timer) clearTimeout(timer)
+}
 
 // --- 媒体比例处理 ---
 const imgAspectRatio = ref<number | null>(null)
@@ -73,7 +88,12 @@ const handleLike = async () => {
 </script>
 
 <template>
-  <div class="post-card" @click="emit('click', post.id)">
+  <div
+      class="post-card"
+      @click="emit('click', post.id)"
+      @mouseenter="handleMouseEnter"
+      @mouseleave="handleMouseLeave"
+  >
     <div class="card-user-header">
       <img :src="post.avatar_url" class="mini-avatar"/>
       <div class="user-meta">
