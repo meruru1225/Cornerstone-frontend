@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import {ref, computed} from 'vue'
+import {useRouter} from 'vue-router'
 import {type PostItem} from '../api/post'
 import {likePostApi, ActionType} from '../api/post-action'
 import {ElMessage} from 'element-plus'
-import { usePostCacheStore } from '../stores/postCache' // 引入 store
+import {usePostCacheStore} from '../stores/postCache'
 
 const props = defineProps<{
   post: PostItem
@@ -13,6 +14,7 @@ const emit = defineEmits<{
   (e: 'click', postId: number): void
 }>()
 
+const router = useRouter()
 const cacheStore = usePostCacheStore()
 
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -26,6 +28,20 @@ const handleMouseEnter = () => {
 const handleMouseLeave = () => {
   if (timer) clearTimeout(timer)
 }
+
+// --- 1. 极浅糖果色渐变 (背景色 - 保持极淡，衬托灰色文字) ---
+const GRADIENTS = [
+  'linear-gradient(to bottom right, #fff1eb, #ace0f9)', // 淡雅蓝红
+  'linear-gradient(to bottom right, #fdfbfb, #ebedee)', // 极简灰白
+  'linear-gradient(to bottom right, #ffffff, #fff0f5)', // 极淡粉
+  'linear-gradient(to bottom right, #ffffff, #f0f8ff)', // 极淡蓝
+  'linear-gradient(to bottom right, #ffffff, #f5f5dc)', // 米色
+  'linear-gradient(to bottom right, #e6e9f0, #eef1f5)', // 冷灰
+]
+
+const bgGradient = computed(() => {
+  return GRADIENTS[props.post.id % GRADIENTS.length]
+})
 
 // --- 媒体比例处理 ---
 const imgAspectRatio = ref<number | null>(null)
@@ -47,30 +63,25 @@ const handleImageLoad = (event: Event) => {
 }
 
 const getMediaStyle = computed(() => {
+  // 纯文本卡片：背景色
+  if (!media.value) {
+    return {
+      background: bgGradient.value
+    }
+  }
+
   let ratio: number
   if (imgAspectRatio.value) {
     ratio = imgAspectRatio.value
   } else if (media.value?.width && media.value?.height) {
     ratio = media.value.width / media.value.height
   } else {
-    ratio = 1
+    ratio = 3 / 4
   }
-  return {aspectRatio: `${Math.max(ratio, 1 / 1.35)}`}
+  return {aspectRatio: `${Math.max(ratio, 0.6)}`}
 })
 
 // --- 业务逻辑 ---
-const formatRelativeTime = (timeStr: string) => {
-  if (!timeStr) return ''
-  let date = new Date(timeStr)
-  if (isNaN(date.getTime())) date = new Date(timeStr.replace(/-/g, '/'))
-  const now = new Date()
-  const diff = (now.getTime() - date.getTime()) / 1000
-  if (diff < 60) return '发布于 刚刚'
-  if (diff < 3600) return `发布于 ${Math.floor(diff / 60)}分钟前`
-  if (diff < 86400) return `发布于 ${Math.floor(diff / 3600)}小时前`
-  return `发布于 ${Math.floor(diff / 86400)}天前`
-}
-
 const handleLike = async () => {
   const post = props.post
   const isLiked = !!post.is_liked
@@ -85,6 +96,11 @@ const handleLike = async () => {
     ElMessage.error(error.message || '操作失败')
   }
 }
+
+// 用户跳转逻辑
+const handleUserClick = () => {
+  router.push({path: '/space', query: {id: props.post.user_id.toString()}})
+}
 </script>
 
 <template>
@@ -94,45 +110,45 @@ const handleLike = async () => {
       @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
   >
-    <div class="card-user-header">
-      <img :src="post.avatar_url" class="mini-avatar"/>
-      <div class="user-meta">
-        <span class="nickname">{{ post.nickname }}</span>
-        <span class="post-time">{{ formatRelativeTime(post.created_at) }}</span>
-      </div>
-    </div>
+    <div v-if="media" class="card-cover" :style="getMediaStyle">
+      <video v-if="isDisplayUrlVideo" :src="displayUrl" muted preload="metadata" class="cover-content"/>
+      <img v-else :src="displayUrl" class="cover-content" loading="lazy" @load="handleImageLoad"/>
 
-    <div v-if="media" class="media-box" :style="getMediaStyle">
-      <video v-if="isDisplayUrlVideo" :src="displayUrl" muted preload="metadata" class="preview-video"/>
-      <img v-else :src="displayUrl" loading="lazy" @load="handleImageLoad"/>
-      <div v-if="isVideo" class="video-badge">
-        <svg viewBox="0 0 24 24" width="14" height="14">
+      <div v-if="isVideo" class="type-badge">
+        <svg viewBox="0 0 24 24" width="12" height="12">
           <path fill="currentColor" d="M8 5v14l11-7z"/>
         </svg>
-        <span>视频</span>
       </div>
     </div>
 
-    <div v-else class="text-post-placeholder">
-      <div class="art-bg"></div>
-      <div class="placeholder-inner">
-        <span class="decor-quote">“</span>
-        <p class="big-text">{{ post.content }}</p>
+    <div v-else class="text-cover-placeholder" :style="getMediaStyle">
+      <div class="quote-col">
+        <span class="quote-symbol">“</span>
+      </div>
+      <div class="text-col">
+        <p class="note-text">{{ post.content }}</p>
       </div>
     </div>
 
-    <div class="post-body">
-      <h3 class="post-title">{{ post.title }}</h3>
+    <div class="card-body">
+      <div class="post-title">{{ post.title || post.content?.substring(0, 15) }}</div>
+
       <div class="card-footer">
-        <div class="post-tags">
-          <span v-for="tag in post.content?.match(/#\S+/g)?.slice(0, 2)" :key="tag" class="inner-tag">{{ tag }}</span>
+        <div class="user-info" @click.stop="handleUserClick">
+          <img :src="post.avatar_url" class="avatar-mini" alt="u"/>
+          <span class="nickname">{{ post.nickname }}</span>
         </div>
-        <div class="likes" @click.stop="handleLike" :class="{ active: post.is_liked }">
-          <svg viewBox="0 0 24 24" width="16" height="16">
+
+        <div class="like-wrapper" @click.stop="handleLike" :class="{ active: post.is_liked }">
+          <svg v-if="post.is_liked" viewBox="0 0 24 24" width="16" height="16">
             <path fill="currentColor"
                   d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
           </svg>
-          <span>{{ post.like_count || 0 }}</span>
+          <svg v-else viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor"
+                  d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"/>
+          </svg>
+          <span class="count">{{ post.like_count || 0 }}</span>
         </div>
       </div>
     </div>
@@ -141,100 +157,122 @@ const handleLike = async () => {
 
 <style scoped>
 .post-card {
-  background: white;
-  border-radius: 16px;
-  border: 1px solid #F1F2F3;
-  transition: all 0.3s ease;
+  background: #fff;
+  border-radius: 12px;
   overflow: hidden;
+  break-inside: avoid;
+  margin-bottom: 20px;
   cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.02);
 }
 
 .post-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
-.card-user-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
-}
-
-.mini-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.nickname {
-  font-size: 13px;
-  font-weight: 800;
-  color: #18191C;
-}
-
-.post-time {
-  font-size: 11px;
-  color: #9499A0;
-}
-
-.media-box {
+/* --- 媒体样式 --- */
+.card-cover {
   width: 100%;
-  background: #F1F2F5;
-  overflow: hidden;
   position: relative;
-  transition: aspect-ratio 0.3s ease;
+  overflow: hidden;
+  background: #f0f0f0;
 }
 
-.media-box img, .preview-video {
+.cover-content {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.4s ease;
 }
 
-.video-badge {
+.post-card:hover .cover-content {
+  transform: scale(1.05);
+}
+
+.type-badge {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 11px;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+  border-radius: 12px;
+  padding: 2px 6px;
+  color: #fff;
   display: flex;
   align-items: center;
-  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.text-post-placeholder {
+/* --- 纯文本海报--- */
+.text-cover-placeholder {
   width: 100%;
-  min-height: 180px;
-  padding: 30px;
-  background: #fdfdfd;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-height: 160px;
+  padding: 24px 20px;
   position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
 }
 
-.big-text {
-  font-size: 16px;
-  font-weight: 600;
-  text-align: center;
-  color: #303133;
+.quote-col {
+  flex-shrink: 0;
+  width: 40px;
 }
 
-.post-body {
-  padding: 12px 16px 18px;
+/* 装饰双引号：浅灰色，作为背景装饰 */
+.quote-symbol {
+  font-size: 50px;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.08);
+  font-family: serif;
+  display: block;
+  transform: translateY(-5px);
+}
+
+.text-col {
+  flex: 1;
+  margin-top: 24px;
+}
+
+.note-text {
+  font-size: 22px;
+  line-height: 1.6;
+  font-weight: 500;
+  color: #555;
+  text-align: left;
+  margin: 0;
+
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  letter-spacing: 1px;
+
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.card-body {
+  padding: 12px;
 }
 
 .post-title {
-  font-size: 15px;
-  font-weight: 800;
-  color: #18191C;
-  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  line-height: 1.4;
+  margin-bottom: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .card-footer {
@@ -243,21 +281,52 @@ const handleLike = async () => {
   align-items: center;
 }
 
-.inner-tag {
-  font-size: 12px;
-  color: #00AEEC;
-  margin-right: 8px;
-}
-
-.likes {
+/* 用户信息：增加点击手型和变色 */
+.user-info {
   display: flex;
   align-items: center;
-  gap: 5px;
-  color: #9499A0;
-  cursor: pointer;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer; /* 增加手型 */
+  transition: opacity 0.2s;
 }
 
-.likes.active {
+.user-info:hover {
+  opacity: 0.8; /* 悬停微反馈 */
+}
+
+.avatar-mini {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #f5f5f5;
+}
+
+.nickname {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.like-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #999;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.like-wrapper:hover {
+  color: #666;
+}
+
+.like-wrapper.active {
   color: #FF4757;
 }
 </style>

@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import PostGrid from '../components/PostGrid.vue'
 import PostDetail from '../components/PostDetail.vue'
-import { getRecommendPostsApi, searchPostsApi, getPostsByTagApi, type PostItem } from '../api/post'
+import { getRecommendPostsApi, getPostsByTagApi, type PostItem } from '../api/post'
+
+const router = useRouter()
 
 const tags = [
   { id: 0, name: '推荐' }, { id: 1, name: '编程开发' }, { id: 2, name: '科技数码' },
@@ -27,7 +30,6 @@ const canScrollRight = ref(false)
 const checkScroll = () => {
   if (!scrollRef.value) return
   const { scrollLeft, scrollWidth, clientWidth } = scrollRef.value
-  // 增加 5px 的容错量
   canScrollLeft.value = scrollLeft > 5
   canScrollRight.value = scrollLeft < (scrollWidth - clientWidth - 5)
 }
@@ -41,13 +43,22 @@ const scroll = (direction: 'left' | 'right') => {
   })
 }
 
+// 核心逻辑修改：不再直接搜索，而是跳转
+const handleSearchJump = () => {
+  if (!searchQuery.value.trim()) return
+  router.push({
+    path: '/search',
+    query: { q: searchQuery.value.trim() }
+  })
+}
+
+// 加载首页内容
 const fetchPosts = async () => {
   loading.value = true
   try {
     let res: any
-    if (searchQuery.value.trim()) {
-      res = await searchPostsApi(searchQuery.value.trim())
-    } else if (activeTagId.value === 0) {
+    // 首页只处理 推荐 和 标签
+    if (activeTagId.value === 0) {
       res = await getRecommendPostsApi()
     } else {
       const tagName = tags.find(t => t.id === activeTagId.value)?.name || ''
@@ -68,7 +79,6 @@ const handlePostClick = (id: number) => {
 
 onMounted(() => {
   fetchPosts()
-  // 延迟检查以确保内容已渲染
   setTimeout(checkScroll, 100)
   window.addEventListener('resize', checkScroll)
 })
@@ -81,10 +91,15 @@ onUnmounted(() => {
 <template>
   <div class="home-page">
     <header class="home-header">
-      <div class="search-container">
-        <div class="search-capsule">
-          <input type="text" v-model="searchQuery" placeholder="在 Cornerstone 发现灵感..." @keyup.enter="fetchPosts" />
-          <button class="search-btn" @click="fetchPosts">
+      <div class="g-search-container">
+        <div class="g-search-capsule">
+          <input
+              type="text"
+              v-model="searchQuery"
+              placeholder="在 Cornerstone 发现灵感..."
+              @keyup.enter="handleSearchJump"
+          />
+          <button class="g-search-btn" @click="handleSearchJump">
             <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
           </button>
         </div>
@@ -126,19 +141,15 @@ onUnmounted(() => {
 <style scoped>
 .home-page { padding: 0 20px 20px; }
 .home-header { display: flex; justify-content: center; margin-bottom: 30px; }
-.search-container { width: 100%; max-width: 500px; }
-.search-capsule { display: flex; background: #f1f2f3; border-radius: 12px; padding: 5px 5px 5px 15px; border: 2px solid transparent; }
-.search-capsule:focus-within { background: #fff; border-color: #00AEEC; box-shadow: 0 4px 12px rgba(0,174,236,0.15); }
-.search-capsule input { flex: 1; border: none; background: transparent; outline: none; }
-.search-btn { background: #00AEEC; color: #fff; border: none; border-radius: 8px; padding: 8px; cursor: pointer; }
 
-/* 导航容器样式优化 */
+/* 删除了本地的 search-container 相关样式，改用全局 g-search-* */
+
+/* ... (保留 tag-nav, scroll-btn 等其他样式) ... */
 .tag-nav-wrapper {
   position: relative;
   margin-bottom: 32px;
   display: flex;
   align-items: center;
-  /* 确保按钮不超出页面边缘 */
   padding: 0 10px;
 }
 
@@ -146,7 +157,7 @@ onUnmounted(() => {
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding: 10px 0; /* 增加上下 padding 防止 active 状态的阴影被截断 */
+  padding: 10px 0;
   scrollbar-width: none;
   scroll-behavior: smooth;
   -ms-overflow-style: none;
@@ -181,7 +192,6 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-/* 导航按钮：稍微调小尺寸并调整位置 */
 .scroll-btn {
   position: absolute;
   top: 50%;
@@ -205,14 +215,13 @@ onUnmounted(() => {
 .scroll-btn.left { left: 0px; }
 .scroll-btn.right { right: 0px; }
 
-/* 渐变遮罩：初始透明度为 0，只有在有滚动空间时才显示 */
 .tag-nav-wrapper::before,
 .tag-nav-wrapper::after {
   content: "";
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 60px; /* 增加宽度，使渐变更自然 */
+  width: 60px;
   pointer-events: none;
   z-index: 5;
   transition: opacity 0.3s ease;
@@ -229,7 +238,6 @@ onUnmounted(() => {
   background: linear-gradient(to left, #fff 20%, rgba(255,255,255,0));
 }
 
-/* 动态控制遮罩透明度 */
 .tag-nav-wrapper.has-left::before { opacity: 1; }
 .tag-nav-wrapper.has-right::after { opacity: 1; }
 

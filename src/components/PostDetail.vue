@@ -12,6 +12,7 @@ import {
   getSubCommentsApi,
   likeCommentApi,
   deleteCommentApi,
+  reportPostApi,
   type CommentItem,
   type CreateCommentParams
 } from '../api/post-action'
@@ -20,7 +21,6 @@ import {uploadMediaApi, type MediaUploadData} from '../api/media'
 import {useUserStore} from '../stores/user'
 import {usePostCacheStore} from '../stores/postCache'
 
-// --- 类型定义扩展 ---
 interface LocalMediaData extends MediaUploadData {
   previewUrl: string
 }
@@ -34,28 +34,6 @@ const emit = defineEmits(['update:modelValue'])
 const userStore = useUserStore()
 const cacheStore = usePostCacheStore()
 const router = useRouter()
-
-// --- 辅助函数 ---
-const normalizeMedia = (mediaInfo: any): any[] => {
-  if (!mediaInfo) return []
-  return Array.isArray(mediaInfo) ? mediaInfo : [mediaInfo]
-}
-
-const isVideo = (mime?: string) => !!mime && mime.includes('video')
-const isAudio = (mime?: string) => !!mime && mime.includes('audio')
-
-const getAudios = (mediaInfo: any) => normalizeMedia(mediaInfo).filter(m => isAudio(m.mime_type))
-const getVisuals = (mediaInfo: any) => normalizeMedia(mediaInfo).filter(m => !isAudio(m.mime_type))
-
-const formatAudioDuration = (duration?: number) => {
-  if (!duration) return `0''`
-  const d = Math.floor(duration)
-  if (d < 60) return `${d}''`
-  const m = Math.floor(d / 60)
-  const s = d % 60
-  const sStr = s < 10 ? `0${s}` : `${s}`
-  return `${m}'${sStr}"`
-}
 
 // --- 状态数据 ---
 const post = ref<PostItem | null>(null)
@@ -112,6 +90,15 @@ onUnmounted(() => {
   clearMedia()
 })
 
+// --- 辅助函数 ---
+const normalizeMedia = (mediaInfo: any): any[] => {
+  if (!mediaInfo) return []
+  return Array.isArray(mediaInfo) ? mediaInfo : [mediaInfo]
+}
+
+const isVideo = (mime?: string) => !!mime && mime.includes('video')
+const isAudio = (mime?: string) => !!mime && mime.includes('audio')
+
 // --- 计算属性 ---
 const allMedias = computed<MediaItem[]>(() => post.value?.medias || [])
 const visualMedias = computed(() => allMedias.value.filter(m => !isAudio(m.mime_type)))
@@ -154,11 +141,25 @@ const checkLogin = () => {
   return true
 }
 
+const getAudios = (mediaInfo: any) => normalizeMedia(mediaInfo).filter(m => isAudio(m.mime_type))
+const getVisuals = (mediaInfo: any) => normalizeMedia(mediaInfo).filter(m => !isAudio(m.mime_type))
+
+const formatAudioDuration = (duration?: number) => {
+  if (!duration) return `0''`
+  const d = Math.floor(duration)
+  if (d < 60) return `${d}''`
+  const m = Math.floor(d / 60)
+  const s = d % 60
+  const sStr = s < 10 ? `0${s}` : `${s}`
+  return `${m}'${sStr}"`
+}
+
 const handleImgError = (e: Event) => {
   const target = e.target as HTMLImageElement
   target.style.display = 'none'
 }
 
+// --- 跳转逻辑 ---
 const handleTagClick = (tag: string) => {
   const tagName = tag.replace('#', '')
   close()
@@ -395,6 +396,41 @@ const handleDeleteComment = (commentId: number, parentId: number = 0) => {
   })
 }
 
+// 举报帖子
+const handleReportPost = () => {
+  if (!checkLogin() || !post.value) return
+  ElMessageBox.prompt('请输入举报理由', '举报帖子', {
+    confirmButtonText: '提交',
+    cancelButtonText: '取消',
+    inputPattern: /\S/,
+    inputErrorMessage: '理由不能为空',
+    appendTo: document.body
+  }).then(async ({value}) => {
+    try {
+      await reportPostApi({post_id: post.value!.id, reason: value})
+      showMessage('success', '举报已提交，我们会尽快处理')
+    } catch (e) {
+      showMessage('error', '操作失败')
+    }
+  }).catch(() => {
+  })
+}
+
+// 举报评论
+const handleReportComment = (commentId: number) => {
+  if (!checkLogin()) return
+  ElMessageBox.confirm('确定要举报这条评论吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
+    appendTo: document.body
+  }).then(() => {
+    console.log('reporting comment', commentId)
+    showMessage('success', '举报成功')
+  }).catch(() => {
+  })
+}
+
 const toggleCommentLike = async (comment: any) => {
   if (!checkLogin()) return
 
@@ -516,9 +552,7 @@ const handleAction = async (type: 'like' | 'collect') => {
 
 const handleShare = async () => {
   if (!post.value) return
-
-  const shareUrl = `${window.location.protocol}//${window.location.host}/detail?id=${post.value.id}`
-
+  const shareUrl = `${window.location.origin}/detail?id=${post.value.id}`
   try {
     await navigator.clipboard.writeText(shareUrl)
     showMessage('success', '已复制链接到剪贴板')
@@ -531,6 +565,13 @@ const formatTime = (time: string) => {
   if (!time) return ''
   const date = new Date(time)
   return `${date.getMonth() + 1}-${date.getDate()}`
+}
+
+// 格式化为中文年月日
+const formatFullDate = (time: string) => {
+  if (!time) return ''
+  const date = new Date(time)
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
 }
 </script>
 
@@ -626,7 +667,6 @@ const formatTime = (time: string) => {
                 <span class="nickname clickable" @click="handleUserClick(post.user_id)">
                   {{ post.nickname }}
                 </span>
-                <span class="date">发布于 {{ post.created_at?.split(' ')[0] }}</span>
               </div>
 
               <button
@@ -680,8 +720,27 @@ const formatTime = (time: string) => {
               </article>
 
               <div class="divider"></div>
-              <div class="date-view">
-                <span>共 {{ stats.view_count }} 次浏览</span>
+
+              <div class="post-meta-row">
+                <div class="meta-left">
+                  <span>发布于 {{ formatFullDate(post.created_at) }}</span>
+                  <span class="meta-dot">·</span>
+                  <span>已浏览 {{ stats.view_count }} 次</span>
+                </div>
+
+                <el-dropdown trigger="click" @command="handleReportPost">
+                  <div class="more-btn">
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                      <path fill="currentColor"
+                            d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                    </svg>
+                  </div>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="report">举报</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </div>
 
               <div class="comments-list">
@@ -752,6 +811,8 @@ const formatTime = (time: string) => {
                         <div class="c-meta">
                           <span class="c-date">{{ formatTime(comment.created_at) }}</span>
                           <span class="c-reply" @click.stop="handleReplyTrigger(comment)">回复</span>
+
+                          <span class="c-report" @click.stop="handleReportComment(comment.id)">举报</span>
 
                           <span
                               v-if="userStore.userInfo?.user_id === comment.user_id"
@@ -847,6 +908,8 @@ const formatTime = (time: string) => {
                             <span class="c-date">{{ formatTime(sub.created_at) }}</span>
                             <span class="c-reply" @click.stop="handleReplyTrigger(sub)">回复</span>
 
+                            <span class="c-report" @click.stop="handleReportComment(sub.id)">举报</span>
+
                             <span
                                 v-if="userStore.userInfo?.user_id === sub.user_id"
                                 class="c-delete"
@@ -906,7 +969,8 @@ const formatTime = (time: string) => {
               </div>
 
               <div v-if="commentMedia.length > 0" class="upload-preview-area">
-                <div v-for="(media, idx) in commentMedia" :key="idx" class="preview-item">
+                <div v-for="(media, idx) in commentMedia" :key="idx" class="preview-item"
+                     :class="{ 'is-audio': media.mime.includes('audio') }">
 
                   <img v-if="media.mime.includes('image')" :src="media.previewUrl || media.url"/>
 
@@ -1098,6 +1162,14 @@ const formatTime = (time: string) => {
   object-fit: contain;
 }
 
+.media-content-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* 媒体导航箭头样式 */
 .media-nav-overlay {
   position: absolute;
@@ -1144,14 +1216,6 @@ const formatTime = (time: string) => {
 .nav-btn:hover {
   background: rgba(255, 255, 255, 0.4);
   transform: translateY(-50%) scale(1.1);
-}
-
-.media-content-wrapper {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .text-poster {
@@ -1229,17 +1293,14 @@ const formatTime = (time: string) => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: center;
 }
 
+/* 居中对齐 */
 .nickname {
   font-weight: 700;
   font-size: 14px;
   color: #333;
-}
-
-.date {
-  font-size: 12px;
-  color: #999;
 }
 
 button.follow-btn {
@@ -1285,6 +1346,36 @@ button.follow-btn.is-following:hover {
 }
 
 .close-btn:hover {
+  background: #f5f5f5;
+  color: #333;
+}
+
+/* 新增：底部元数据行 */
+.post-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 24px;
+  color: #9499A0;
+  font-size: 12px;
+}
+
+.meta-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.more-btn {
+  cursor: pointer;
+  color: #999;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.more-btn:hover {
   background: #f5f5f5;
   color: #333;
 }
@@ -1401,6 +1492,15 @@ button.follow-btn.is-following:hover {
 
 .c-reply:hover {
   color: #00AEEC;
+}
+
+.c-report {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.c-report:hover {
+  color: #FF4757;
 }
 
 .c-like {
@@ -1664,7 +1764,13 @@ button.follow-btn.is-following:hover {
   justify-content: center;
 }
 
-/* 上传预览音频容器：不限制正方形 */
+.preview-item.is-audio {
+  width: auto;
+  height: auto;
+  background: transparent;
+  border: none;
+}
+
 .preview-item img, .preview-item video {
   width: 100%;
   height: 100%;
@@ -1837,7 +1943,6 @@ button.follow-btn.is-following:hover {
   border-radius: 4px;
 }
 
-/* 媒体切换动画 */
 .media-fade-enter-active, .media-fade-leave-active {
   transition: opacity 0.3s ease;
 }
