@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
-import { ElMessage } from 'element-plus'
-import { VueDatePicker } from '@vuepic/vue-datepicker'
+import {ref, reactive, computed} from 'vue'
+import {ElMessage} from 'element-plus'
+import {VueDatePicker} from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
-import { zhCN } from 'date-fns/locale'
-import { useUserStore } from '../stores/user'
-import { registerApi, sendCodeApi, forgetPasswordApi } from '../api/auth'
+import {zhCN} from 'date-fns/locale'
+import {useUserStore} from '../stores/user'
+import {registerApi, sendCodeApi, forgetPasswordApi} from '../api/auth'
 
 const props = defineProps({
   modelValue: Boolean
@@ -40,6 +40,15 @@ const formData = reactive({
   bio: ''
 })
 
+// [新增] 格式化函数
+const formatDate = (date: Date) => {
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  return `${year}年${month}月${day}日`
+}
+
 const isRegister = computed(() => currentMode.value === 'register')
 const isForget = computed(() => currentMode.value === 'forget')
 
@@ -55,7 +64,7 @@ const buttonText = computed(() => {
 })
 
 const showMsg = (type: 'success' | 'warning' | 'error', message: string) => {
-  ElMessage({ type, message, grouping: true })
+  ElMessage({type, message, grouping: true})
 }
 
 const toggleMode = (mode: Mode) => {
@@ -70,7 +79,7 @@ const toggleMode = (mode: Mode) => {
 const sendCode = async () => {
   if (!formData.account) return showMsg('warning', '请输入手机号')
   if (!/^1[3-9]\d{9}$/.test(formData.account)) return showMsg('warning', '请输入正确的手机号')
-  
+
   if (countdown.value > 0) return
 
   try {
@@ -89,9 +98,7 @@ const sendCode = async () => {
 const handleSubmit = async () => {
   if (currentMode.value === 'login') {
     if (!formData.account) return showMsg('warning', '请输入账号')
-    // 如果是密码登录，检查密码
     if (loginMethod.value === 'password' && !formData.password) return showMsg('warning', '请输入密码')
-    // 如果是验证码登录，检查验证码
     if (loginMethod.value === 'sms' && !formData.smsCode) return showMsg('warning', '请输入验证码')
 
     isLoading.value = true
@@ -102,7 +109,6 @@ const handleSubmit = async () => {
         smsCode: formData.smsCode,
         method: loginMethod.value
       })
-      
       showMsg('success', '欢迎回来！登录成功')
       close()
     } catch (error: any) {
@@ -156,7 +162,6 @@ const handleSubmit = async () => {
           password: formData.password,
           nickname: formData.nickname,
           gender: formData.gender,
-          // birthday: formData.birthday ? formData.birthday.toISOString().split('T')[0] : undefined, // 如果组件返回 Date 对象，需要格式化
           birthday: formData.birthday ? new Date(formData.birthday).toISOString().split('T')[0] : undefined,
           region: formData.region,
           bio: formData.bio
@@ -248,7 +253,8 @@ const prevStep = () => {
                   <span v-else>{{ registerStep === 1 ? '创建账号' : '完善资料' }}</span>
                 </h3>
                 <div class="login-type-switch" v-if="currentMode === 'login'">
-                  <span :class="{ active: loginMethod === 'password' }" @click="loginMethod = 'password'">密码登录</span>
+                  <span :class="{ active: loginMethod === 'password' }"
+                        @click="loginMethod = 'password'">密码登录</span>
                   <span class="divider">/</span>
                   <span :class="{ active: loginMethod === 'sms' }" @click="loginMethod = 'sms'">验证码登录</span>
                 </div>
@@ -265,36 +271,50 @@ const prevStep = () => {
               <div class="form-body">
                 <div v-if="currentMode !== 'register' || registerStep === 1" class="step-fade">
                   <div class="input-group">
-                    <div class="input-item">
+                    <div class="g-input-item">
                       <svg class="icon" viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                        <path fill="currentColor"
+                              d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                       </svg>
-                      <input type="text" v-model="formData.account" :placeholder="loginMethod === 'sms' ? '请输入手机号' : '请输入账号/手机号'"/>
+                      <input type="text" v-model="formData.account"
+                             :placeholder="loginMethod === 'sms' ? '请输入手机号' : '请输入账号/手机号'"/>
                     </div>
-                    <div class="input-item sms-mode" v-if="(currentMode === 'login' && loginMethod === 'sms') || currentMode === 'forget'">
+
+                    <div class="g-input-item sms-mode"
+                         v-if="(currentMode === 'login' && loginMethod === 'sms') || currentMode === 'forget'">
                       <svg class="icon" viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+                        <path fill="currentColor"
+                              d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
                       </svg>
                       <input type="text" v-model="formData.smsCode" placeholder="验证码"/>
                       <button class="fetch-btn" :disabled="countdown > 0" @click="sendCode">
                         {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
                       </button>
                     </div>
-                    <template v-if="(currentMode === 'login' && loginMethod === 'password') || currentMode === 'register' || currentMode === 'forget'">
-                      <div class="input-item">
+
+                    <template
+                        v-if="(currentMode === 'login' && loginMethod === 'password') || currentMode === 'register' || currentMode === 'forget'">
+                      <div class="g-input-item">
                         <svg class="icon" viewBox="0 0 24 24">
-                          <path fill="currentColor" d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                          <path fill="currentColor"
+                                d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.89 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
                         </svg>
-                        <input type="password" v-model="formData.password" :placeholder="currentMode === 'forget' ? '请输入新密码' : '请输入密码'" @focus="isPasswordFocus = true" @blur="isPasswordFocus = false" />
+                        <input type="password" v-model="formData.password"
+                               :placeholder="currentMode === 'forget' ? '请输入新密码' : '请输入密码'"
+                               @focus="isPasswordFocus = true" @blur="isPasswordFocus = false"/>
                       </div>
                     </template>
-                    <div class="input-item" v-if="currentMode === 'register' || currentMode === 'forget'">
+
+                    <div class="g-input-item" v-if="currentMode === 'register' || currentMode === 'forget'">
                       <svg class="icon" viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7z"/>
+                        <path fill="currentColor"
+                              d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7z"/>
                       </svg>
-                      <input type="password" v-model="formData.confirmPassword" placeholder="再次确认密码" @focus="isPasswordFocus = true" @blur="isPasswordFocus = false" />
+                      <input type="password" v-model="formData.confirmPassword" placeholder="再次确认密码"
+                             @focus="isPasswordFocus = true" @blur="isPasswordFocus = false"/>
                     </div>
                   </div>
+
                   <div class="options-row" v-if="currentMode === 'login'">
                     <label class="check-label"><input type="checkbox"> <span>记住我</span></label>
                     <span class="link-btn" @click="toggleMode('forget')">忘记密码?</span>
@@ -303,39 +323,60 @@ const prevStep = () => {
 
                 <div v-else class="step-fade">
                   <div class="input-group">
-                    <div class="input-item">
+                    <div class="g-input-item">
                       <svg class="icon" viewBox="0 0 24 24">
-                        <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                        <path fill="currentColor"
+                              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
                       </svg>
                       <input type="text" v-model="formData.nickname" placeholder="昵称 (必填)"/>
                     </div>
+
                     <div class="row-2-col">
-                      <div class="input-item small date-wrapper">
+                      <div class="g-input-item small date-wrapper">
                         <svg class="icon date-icon" viewBox="0 0 24 24">
-                          <path fill="currentColor" d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                          <path fill="currentColor"
+                                d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
                         </svg>
-                        <VueDatePicker v-model="formData.birthday" :locale="zhCN" :format-locale="zhCN" :enable-time-picker="false" auto-apply format="yyyy/MM/dd" placeholder="生日" :teleport="true" />
+                        <VueDatePicker
+                            class="g-date-picker-reset"
+                            v-model="formData.birthday"
+                            :locale="zhCN"
+                            :enable-time-picker="false"
+                            auto-apply
+                            :format="formatDate"
+                            placeholder="选择生日"
+                            :teleport="true"
+                        />
                       </div>
-                      <div class="input-item small">
+                      <div class="g-input-item small">
                         <input type="text" v-model="formData.region" placeholder="城市"/>
                       </div>
                     </div>
-                    <div class="gender-selector">
-                      <div class="gender-option" :class="{ active: formData.gender === 1 }" @click="formData.gender = 1">♂ 男生</div>
-                      <div class="gender-option" :class="{ active: formData.gender === 2 }" @click="formData.gender = 2">♀ 女生</div>
-                      <div class="gender-option" :class="{ active: formData.gender === 0 }" @click="formData.gender = 0">? 保密</div>
+
+                    <div class="g-gender-selector">
+                      <div class="g-gender-option" :class="{ active: formData.gender === 1 }"
+                           @click="formData.gender = 1">♂ 男生
+                      </div>
+                      <div class="g-gender-option" :class="{ active: formData.gender === 2 }"
+                           @click="formData.gender = 2">♀ 女生
+                      </div>
+                      <div class="g-gender-option" :class="{ active: formData.gender === 0 }"
+                           @click="formData.gender = 0">? 保密
+                      </div>
                     </div>
-                    <div class="input-item textarea-item">
+
+                    <div class="g-input-item textarea-item">
                       <textarea v-model="formData.bio" placeholder="写一句个性签名吧..."></textarea>
                     </div>
                   </div>
+
                   <div class="options-row center">
                     <span class="link-btn" @click="prevStep">返回上一步</span>
                   </div>
                 </div>
               </div>
 
-              <button class="main-btn" :disabled="isLoading" @click="handleSubmit">
+              <button class="g-main-btn" :disabled="isLoading" @click="handleSubmit">
                 {{ buttonText }}
               </button>
 
@@ -356,7 +397,8 @@ const prevStep = () => {
 </template>
 
 <style scoped>
-/* 容器固定定位，调整为几乎透明的毛玻璃效果 */
+/* 样式部分保持不变，已复用 form.css */
+/* (...省略重复的样式代码，请保留原文件中的 css 内容...) */
 .page-container {
   position: fixed;
   top: 0;
@@ -364,9 +406,7 @@ const prevStep = () => {
   width: 100vw;
   height: 100vh;
   z-index: 2000;
-  /* 显著降低背景透明度 */
   background-color: rgba(241, 242, 245, 0.3);
-  /* 降低模糊半径，使其更清亮 */
   backdrop-filter: blur(2px);
   display: flex;
   justify-content: center;
@@ -375,7 +415,6 @@ const prevStep = () => {
   overflow: hidden;
 }
 
-/* 右上角关闭按钮 */
 .close-btn {
   position: absolute;
   top: 20px;
@@ -395,10 +434,8 @@ const prevStep = () => {
 
 :root {
   --primary: #00aeec;
-  --primary-deep: #009cd6;
   --text-main: #18191c;
   --text-sub: #9499a0;
-  --input-bg: #f7f8fa;
 }
 
 .bg-shape {
@@ -434,8 +471,12 @@ const prevStep = () => {
 }
 
 @keyframes breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
 }
 
 .auth-card {
@@ -577,8 +618,12 @@ const prevStep = () => {
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 .mascot-body {
@@ -713,8 +758,7 @@ const prevStep = () => {
   justify-content: space-between;
 }
 
-.blushs::before,
-.blushs::after {
+.blushs::before, .blushs::after {
   content: '';
   width: 8px;
   height: 4px;
@@ -735,16 +779,25 @@ const prevStep = () => {
 }
 
 @keyframes shadow-scale {
-  0%, 100% { transform: scale(1); opacity: 0.15; }
-  50% { transform: scale(0.8); opacity: 0.1; }
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.15;
+  }
+  50% {
+    transform: scale(0.8);
+    opacity: 0.1;
+  }
 }
 
 @keyframes blink {
-  0%, 96%, 100% { transform: scaleY(1); }
-  98% { transform: scaleY(0.1); }
+  0%, 96%, 100% {
+    transform: scaleY(1);
+  }
+  98% {
+    transform: scaleY(0.1);
+  }
 }
 
-/* 表单包装器 */
 .form-wrapper {
   width: 100%;
   max-width: 400px;
@@ -814,48 +867,10 @@ const prevStep = () => {
   color: #e0e0e0;
 }
 
-/* 输入项样式 */
 .input-group {
   display: flex;
   flex-direction: column;
-  gap: 18px;
   margin-bottom: 25px;
-}
-
-.input-item {
-  position: relative;
-  height: 48px;
-  background-color: var(--input-bg);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  border: 1px solid transparent;
-  transition: all 0.3s;
-}
-
-.input-item:focus-within {
-  background-color: #fff;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 174, 236, 0.1);
-}
-
-.input-item .icon {
-  width: 20px;
-  height: 20px;
-  color: #c0c4cc;
-  margin-right: 12px;
-  flex-shrink: 0;
-}
-
-.input-item input {
-  flex: 1;
-  border: none;
-  background-color: transparent;
-  font-size: 14px;
-  height: 100%;
-  outline: none;
-  color: var(--text-main);
 }
 
 .sms-mode {
@@ -887,11 +902,13 @@ const prevStep = () => {
 .row-2-col {
   display: flex;
   gap: 10px;
+  margin-bottom: 20px;
 }
 
-.input-item.small {
+.g-input-item.small {
   flex: 1;
   min-width: 0;
+  margin-bottom: 0;
 }
 
 .date-wrapper {
@@ -902,37 +919,6 @@ const prevStep = () => {
   color: #c0c4cc;
 }
 
-.gender-selector {
-  display: flex;
-  gap: 10px;
-}
-
-.gender-option {
-  flex: 1;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--input-bg);
-  border-radius: 8px;
-  color: var(--text-sub);
-  font-size: 13px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.2s;
-}
-
-.gender-option:hover {
-  background-color: #edf1f5;
-}
-
-.gender-option.active {
-  background-color: rgba(0, 174, 236, 0.1);
-  color: var(--primary);
-  border-color: var(--primary);
-  font-weight: 500;
-}
-
 .textarea-item {
   height: auto;
   padding: 12px 16px;
@@ -940,15 +926,8 @@ const prevStep = () => {
 }
 
 .textarea-item textarea {
-  width: 100%;
   height: 60px;
-  border: none;
-  background-color: transparent;
   resize: none;
-  outline: none;
-  font-family: inherit;
-  font-size: 14px;
-  color: var(--text-main);
 }
 
 .options-row {
@@ -982,37 +961,6 @@ const prevStep = () => {
 
 .link-btn:hover {
   color: var(--primary);
-}
-
-.main-btn {
-  width: 100%;
-  height: 48px;
-  background-color: #00aeec !important;
-  color: #ffffff !important;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 6px 16px rgba(0, 174, 236, 0.3);
-}
-
-.main-btn:hover {
-  background-color: #009cd6 !important;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 174, 236, 0.4);
-}
-
-.main-btn:active {
-  transform: translateY(0);
-}
-
-.main-btn:disabled {
-  background-color: #a0dfff !important;
-  cursor: not-allowed;
-  box-shadow: none;
 }
 
 .bottom-tips {

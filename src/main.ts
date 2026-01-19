@@ -9,6 +9,7 @@ import router from './router'
 
 import './assets/css/element-override.css'
 import './assets/css/search.css'
+import './assets/css/form.css'
 
 const app = createApp(App)
 

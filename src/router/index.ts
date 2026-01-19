@@ -23,6 +23,11 @@ const router = createRouter({
                     component: () => import('../views/SearchView.vue')
                 },
                 {
+                    path: '/user-tags',
+                    name: 'user-tags',
+                    component: () => import('../views/UserTagView.vue')
+                },
+                {
                     path: 'ai',
                     name: 'ai',
                     component: () => import('../views/AIView.vue')
@@ -41,6 +46,12 @@ const router = createRouter({
                     path: 'profile',
                     name: 'profile',
                     component: () => import('../views/HomeView.vue') // 暂时占位
+                },
+                {
+                    path: 'settings/profile',
+                    name: 'settings-profile',
+                    component: () => import('../views/UserInfoModifyView.vue'),
+                    meta: { title: '编辑资料' }
                 }
             ]
         },

@@ -2,8 +2,10 @@
 import {ref, onMounted, onUnmounted, watch, nextTick} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import PostGrid from '../components/PostGrid.vue'
+import UserGrid from '../components/UserGrid.vue'
 import PostDetail from '../components/PostDetail.vue'
 import {searchPostsApi, type PostItem} from '../api/post'
+import {searchUserApi, type UserHomeInfo} from '../api/user'
 import {searchAgentApi} from '../api/agent'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
@@ -26,51 +28,95 @@ const md: MarkdownIt = new MarkdownIt({
 const route = useRoute()
 const router = useRouter()
 
+// --- 搜索状态 ---
 const keyword = ref('')
-const posts = ref<PostItem[]>([])
-const loadingPosts = ref(false)
+const searchType = ref<'post' | 'user'>('post')
 
+// --- 数据状态 ---
+const posts = ref<PostItem[]>([])
+const users = ref<UserHomeInfo[]>([])
+const loading = ref(false)
+
+// --- Agent 状态 ---
 const agentOutput = ref('')
 const isAgentThinking = ref(false)
+const lastAgentQuery = ref('')
 const agentAbortController = ref<AbortController | null>(null)
-// 新增：用于自动滚动的 ref
 const agentScrollBody = ref<HTMLElement | null>(null)
 
+// --- 详情页状态 ---
 const isDetailVisible = ref(false)
 const currentPostId = ref<number | null>(null)
 
 const handleSearch = () => {
   const query = keyword.value.trim()
   if (!query) return
-  router.replace({query: {q: query}})
+  router.replace({query: {q: query, type: searchType.value}})
 }
 
 const performSearch = (query: string) => {
-  posts.value = []
-  agentOutput.value = ''
-
-  if (agentAbortController.value) {
-    agentAbortController.value.abort()
+  if (searchType.value === 'post') {
+    posts.value = []
+  } else {
+    users.value = []
   }
-  agentAbortController.value = new AbortController()
 
-  fetchPosts(query)
-  fetchAgentSummary(query, agentAbortController.value.signal)
+  if (agentAbortController.value && query !== lastAgentQuery.value) {
+    agentAbortController.value.abort()
+    agentAbortController.value = new AbortController()
+  } else if (!agentAbortController.value) {
+    agentAbortController.value = new AbortController()
+  }
+
+  if (searchType.value === 'post') {
+    fetchPosts(query)
+
+    if (query !== lastAgentQuery.value || !agentOutput.value) {
+      agentOutput.value = ''
+      lastAgentQuery.value = query
+      fetchAgentSummary(query, agentAbortController.value.signal)
+    }
+  } else {
+    fetchUsers(query)
+  }
+}
+
+const switchTab = (type: 'post' | 'user') => {
+  if (searchType.value === type) return
+  searchType.value = type
+
+  router.replace({
+    query: {
+      q: keyword.value,
+      type: type
+    }
+  })
 }
 
 const fetchPosts = async (query: string) => {
-  loadingPosts.value = true
+  loading.value = true
   try {
     const res: any = await searchPostsApi(query)
     posts.value = res.data?.list || res.list || []
   } catch (error) {
     console.error('搜索帖子失败', error)
   } finally {
-    loadingPosts.value = false
+    loading.value = false
   }
 }
 
-// 修复核心：数据解析逻辑优化
+const fetchUsers = async (query: string) => {
+  loading.value = true
+  try {
+    const res: any = await searchUserApi(query)
+    users.value = Array.isArray(res.data) ? res.data : (Array.isArray(res) ? res : [])
+  } catch (error) {
+    console.error('搜索用户失败', error)
+  } finally {
+    loading.value = false
+  }
+}
+
 const fetchAgentSummary = async (query: string, signal: AbortSignal) => {
   isAgentThinking.value = true
   try {
@@ -79,16 +125,11 @@ const fetchAgentSummary = async (query: string, signal: AbortSignal) => {
         {
           onMessage: async (data) => {
             try {
-              // 严格解析：必须是 JSON 格式且包含有效内容
               const parsed = JSON.parse(data)
-
-              // 只有当 type 是 message 且 content 有值时才拼接
               if (parsed.type === 'message' && parsed.content) {
                 let content = parsed.content
                 if (content === '\\n') content = '\n'
                 agentOutput.value += content
-
-                // 自动滚动到底部
                 await nextTick()
                 if (agentScrollBody.value) {
                   agentScrollBody.value.scrollTo({
@@ -98,7 +139,6 @@ const fetchAgentSummary = async (query: string, signal: AbortSignal) => {
                 }
               }
             } catch (e) {
-              // 解析失败忽略，绝不回退使用 raw data
             }
           },
           onFinish: () => {
@@ -106,7 +146,6 @@ const fetchAgentSummary = async (query: string, signal: AbortSignal) => {
           },
           onError: () => {
             isAgentThinking.value = false
-            if (!agentOutput.value) agentOutput.value = '智能引擎暂时繁忙，请稍后重试。'
           }
         },
         signal
@@ -125,18 +164,26 @@ const handlePostClick = (id: number) => {
 
 onMounted(() => {
   const q = route.query.q as string
+  const type = route.query.type as 'post' | 'user'
+
+  if (type) searchType.value = type
   if (q) {
     keyword.value = q
     performSearch(q)
   }
 })
 
-watch(() => route.query.q, (newQ) => {
-  if (newQ) {
-    keyword.value = newQ as string
-    performSearch(newQ as string)
-  }
-})
+watch(
+    () => [route.query.q, route.query.type],
+    ([newQ, newType]) => {
+      if (newQ) keyword.value = newQ as string
+      if (newType) searchType.value = newType as 'post' | 'user'
+
+      if (newQ) {
+        performSearch(newQ as string)
+      }
+    }
+)
 
 onUnmounted(() => {
   if (agentAbortController.value) agentAbortController.value.abort()
@@ -146,27 +193,46 @@ onUnmounted(() => {
 <template>
   <div class="search-view">
     <header class="sticky-header">
-      <div class="g-search-container">
-        <div class="g-search-capsule">
-          <input
-              type="text"
-              v-model="keyword"
-              placeholder="搜索灵感、用户或内容..."
-              @keyup.enter="handleSearch"
-          />
-          <button class="g-search-btn" @click="handleSearch">
-            <svg viewBox="0 0 24 24" width="20" height="20">
-              <path fill="currentColor"
-                    d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-            </svg>
-          </button>
+      <div class="header-inner">
+        <div class="g-search-container">
+          <div class="g-search-capsule">
+            <input
+                type="text"
+                v-model="keyword"
+                placeholder="搜索灵感、用户或内容..."
+                @keyup.enter="handleSearch"
+            />
+            <button class="g-search-btn" @click="handleSearch">
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path fill="currentColor"
+                      d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="search-tabs">
+          <div
+              class="tab-item"
+              :class="{ active: searchType === 'post' }"
+              @click="switchTab('post')"
+          >
+            帖子
+          </div>
+          <div
+              class="tab-item"
+              :class="{ active: searchType === 'user' }"
+              @click="switchTab('user')"
+          >
+            用户
+          </div>
         </div>
       </div>
     </header>
 
     <div class="search-content">
       <transition name="slide-fade">
-        <div v-if="agentOutput || isAgentThinking" class="agent-section">
+        <div v-if="searchType === 'post' && (agentOutput || isAgentThinking)" class="agent-section">
           <div class="agent-header">
             <div class="ai-icon">
               <svg viewBox="0 0 24 24" width="16" height="16">
@@ -177,7 +243,6 @@ onUnmounted(() => {
             </div>
             <span v-if="isAgentThinking" class="typing-indicator">生成中...</span>
           </div>
-
           <div class="agent-scroll-box" ref="agentScrollBody">
             <div class="agent-body markdown-body" v-html="md.render(agentOutput)"></div>
           </div>
@@ -185,18 +250,22 @@ onUnmounted(() => {
       </transition>
 
       <div class="results-section">
-        <div v-if="loadingPosts" class="loading-state">
+        <div v-if="loading" class="loading-state">
           <div class="spinner"></div>
         </div>
 
-        <div v-else-if="posts.length > 0">
-          <h3 class="section-title">相关发现</h3>
+        <div v-else-if="searchType === 'post' && posts.length > 0">
+          <h3 class="section-title">相关帖子</h3>
           <PostGrid :posts="posts" @post-click="handlePostClick"/>
         </div>
 
-        <div v-else-if="!loadingPosts && keyword" class="empty-state">
-          <img src="https://cube.elemecdn.com/e/fd/0fc7d20532fdaf769a25683617711png.png" alt="empty"/>
-          <p>没有找到相关内容，试试其他关键词？</p>
+        <div v-else-if="searchType === 'user' && users.length > 0">
+          <h3 class="section-title">相关用户</h3>
+          <UserGrid :users="users"/>
+        </div>
+
+        <div v-else-if="!loading && keyword" class="empty-state">
+          <p>没有找到相关{{ searchType === 'post' ? '帖子' : '用户' }}</p>
         </div>
       </div>
     </div>
@@ -206,6 +275,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* 保持原有样式不变 */
 .search-view {
   min-height: 100vh;
   background: #fff;
@@ -217,10 +287,51 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
   z-index: 50;
-  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.header-inner {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px 20px 0;
+}
+
+.search-tabs {
   display: flex;
   justify-content: center;
-  border-bottom: 1px solid #f0f0f0;
+  gap: 30px;
+  margin-top: 16px;
+}
+
+.tab-item {
+  font-size: 15px;
+  font-weight: 500;
+  color: #61666D;
+  padding-bottom: 10px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+}
+
+.tab-item:hover {
+  color: #18191C;
+}
+
+.tab-item.active {
+  color: #00AEEC;
+  font-weight: 600;
+}
+
+.tab-item.active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 3px;
+  background: #00AEEC;
+  border-radius: 2px;
 }
 
 .search-content {
@@ -229,15 +340,13 @@ onUnmounted(() => {
   padding: 20px;
 }
 
-/* Agent 区域样式 */
 .agent-section {
   background: linear-gradient(135deg, #f0faff 0%, #f7f9fc 100%);
   border-radius: 16px;
-  padding: 20px 20px 10px 20px; /* 底部padding减小，留给滚动区域 */
+  padding: 20px 20px 10px 20px;
   margin-bottom: 30px;
   border: 1px solid #e3f2fd;
   box-shadow: 0 4px 20px rgba(0, 174, 236, 0.05);
-  /* 防止布局跳动，可以设置最小高度，但主要靠内部 scroll-box 固定 */
 }
 
 .agent-header {
@@ -249,18 +358,14 @@ onUnmounted(() => {
   border-bottom: 1px solid rgba(0, 174, 236, 0.1);
 }
 
-/* 修复：固定高度的滚动容器 */
 .agent-scroll-box {
-  height: 280px; /* 固定高度 */
-  overflow-y: auto; /* 允许纵向滚动 */
-  padding-right: 10px; /* 防止文字紧贴滚动条 */
-
-  /* 美化滚动条 */
-  scrollbar-width: thin; /* Firefox */
+  height: 280px;
+  overflow-y: auto;
+  padding-right: 10px;
+  scrollbar-width: thin;
   scrollbar-color: #00AEEC #f0faff;
 }
 
-/* Chrome/Safari 滚动条样式 */
 .agent-scroll-box::-webkit-scrollbar {
   width: 6px;
 }
@@ -299,7 +404,6 @@ onUnmounted(() => {
   color: #333;
 }
 
-/* 结果区样式 */
 .section-title {
   font-size: 18px;
   font-weight: 700;
@@ -323,15 +427,12 @@ onUnmounted(() => {
   animation: spin 1s linear infinite;
 }
 
+/* 空状态样式微调 */
 .empty-state {
   text-align: center;
-  padding: 60px 0;
+  padding: 80px 0;
   color: #9499A0;
-}
-
-.empty-state img {
-  width: 200px;
-  margin-bottom: 20px;
+  font-size: 15px;
 }
 
 @keyframes spin {
@@ -360,8 +461,7 @@ onUnmounted(() => {
   transition: all 0.3s cubic-bezier(1, 0.5, 0.8, 1);
 }
 
-.slide-fade-enter-from,
-.slide-fade-leave-to {
+.slide-fade-enter-from, .slide-fade-leave-to {
   transform: translateY(-10px);
   opacity: 0;
 }

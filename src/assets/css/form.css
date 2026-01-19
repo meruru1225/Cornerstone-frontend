@@ -1,0 +1,175 @@
+/* src/assets/form.css */
+
+:root {
+    --primary: #00AEEC;
+    --primary-hover: #009CD6;
+    --input-bg: #F4F6F8;
+    --text-main: #18191C;
+    --text-sub: #9499A0;
+    --border-radius: 12px;
+}
+
+/* --- 通用输入框容器 --- */
+.g-input-item {
+    position: relative;
+    height: 48px;
+    background-color: var(--input-bg);
+    border-radius: var(--border-radius);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    border: 1px solid transparent;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1);
+    margin-bottom: 20px;
+}
+
+.g-input-item:focus-within {
+    background-color: #fff;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0, 174, 236, 0.1);
+}
+
+.g-input-item .icon {
+    width: 20px;
+    height: 20px;
+    color: #C0C4CC;
+    margin-right: 12px;
+    flex-shrink: 0;
+    transition: color 0.3s;
+}
+
+.g-input-item:focus-within .icon {
+    color: var(--primary);
+}
+
+.g-input-item input,
+.g-input-item textarea {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 14px;
+    color: var(--text-main);
+    width: 100%;
+    font-family: inherit;
+}
+
+.g-input-item input::placeholder,
+.g-input-item textarea::placeholder {
+    color: var(--text-sub);
+}
+
+/* --- VueDatePicker 样式深度重置 --- */
+.g-date-picker-reset {
+    width: 100%;
+    flex: 1;
+    font-family: inherit;
+}
+
+.g-date-picker-reset .dp__main {
+    font-family: inherit;
+    height: 100%; /* 撑满高度 */
+}
+
+.g-date-picker-reset .dp__input_wrap {
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+/* 移除 DatePicker 自带的所有装饰，使其透明且对齐 */
+.g-date-picker-reset .dp__input {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    font-size: 14px !important;
+    color: var(--text-main) !important;
+    font-family: inherit !important;
+    height: 100% !important;
+    line-height: normal !important; /* 避免 line-height 撑开 */
+    display: flex;
+    align-items: center;
+}
+
+/* 隐藏自带图标 */
+.g-date-picker-reset .dp__input_icon {
+    display: none !important;
+}
+
+/* 调整清除按钮位置 */
+.g-date-picker-reset .dp__clear_icon {
+    right: 0 !important;
+    color: #C0C4CC !important;
+}
+
+.g-date-picker-reset .dp__input::placeholder {
+    color: var(--text-sub) !important;
+    opacity: 1;
+}
+
+/* --- 性别选择器 --- */
+.g-gender-selector {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.g-gender-option {
+    flex: 1;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--input-bg);
+    border-radius: 8px;
+    color: var(--text-sub);
+    font-size: 13px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+
+.g-gender-option:hover {
+    background-color: #EDF1F5;
+}
+
+.g-gender-option.active {
+    background-color: rgba(0, 174, 236, 0.1);
+    color: var(--primary);
+    border-color: var(--primary);
+    font-weight: 600;
+}
+
+/* --- 按钮 --- */
+.g-main-btn {
+    width: 100%;
+    height: 48px;
+    background-color: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--border-radius);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 6px 16px rgba(0, 174, 236, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.g-main-btn:hover:not(:disabled) {
+    background-color: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 174, 236, 0.4);
+}
+
+.g-main-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    box-shadow: none;
+    background-color: #A0DFFE;
+}
