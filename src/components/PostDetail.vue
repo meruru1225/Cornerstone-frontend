@@ -35,6 +35,28 @@ const userStore = useUserStore()
 const cacheStore = usePostCacheStore()
 const router = useRouter()
 
+// --- 辅助函数 ---
+const normalizeMedia = (mediaInfo: any): any[] => {
+  if (!mediaInfo) return []
+  return Array.isArray(mediaInfo) ? mediaInfo : [mediaInfo]
+}
+
+const isVideo = (mime?: string) => !!mime && mime.includes('video')
+const isAudio = (mime?: string) => !!mime && mime.includes('audio')
+
+const getAudios = (mediaInfo: any) => normalizeMedia(mediaInfo).filter(m => isAudio(m.mime_type))
+const getVisuals = (mediaInfo: any) => normalizeMedia(mediaInfo).filter(m => !isAudio(m.mime_type))
+
+const formatAudioDuration = (duration?: number) => {
+  if (!duration) return `0''`
+  const d = Math.floor(duration)
+  if (d < 60) return `${d}''`
+  const m = Math.floor(d / 60)
+  const s = d % 60
+  const sStr = s < 10 ? `0${s}` : `${s}`
+  return `${m}'${sStr}"`
+}
+
 // --- 状态数据 ---
 const post = ref<PostItem | null>(null)
 const stats = ref({
@@ -91,9 +113,11 @@ onUnmounted(() => {
 })
 
 // --- 计算属性 ---
-const hasMedia = computed(() => (post.value?.medias && post.value.medias.length > 0))
-const medias = computed<MediaItem[]>(() => post.value?.medias || [])
-const currentMedia = computed(() => medias.value[activeMediaIndex.value])
+const allMedias = computed<MediaItem[]>(() => post.value?.medias || [])
+const visualMedias = computed(() => allMedias.value.filter(m => !isAudio(m.mime_type)))
+const postAudios = computed(() => allMedias.value.filter(m => isAudio(m.mime_type)))
+const hasVisualMedia = computed(() => visualMedias.value.length > 0)
+const currentMedia = computed(() => visualMedias.value[activeMediaIndex.value])
 const isMainVideo = (media: MediaItem | undefined): boolean => !!media?.mime_type?.includes('video')
 
 const extractedTags = computed(() => post.value?.content?.match(/#\S+/g) || [])
@@ -121,7 +145,7 @@ const showMessage = (type: 'success' | 'warning' | 'error', msg: string) => {
   })
 }
 
-// --- 辅助函数 ---
+// --- 其他辅助函数 ---
 const checkLogin = () => {
   if (!userStore.isLoggedIn || !userStore.userInfo) {
     showMessage('warning', '请先登录')
@@ -130,33 +154,10 @@ const checkLogin = () => {
   return true
 }
 
-const normalizeMedia = (mediaInfo: any): any[] => {
-  if (!mediaInfo) return []
-  return Array.isArray(mediaInfo) ? mediaInfo : [mediaInfo]
-}
-
-const isVideo = (mime: string) => mime && mime.includes('video')
-const isAudio = (mime: string) => mime && mime.includes('audio')
-
-const getAudios = (mediaInfo: any) => normalizeMedia(mediaInfo).filter(m => isAudio(m.mime_type))
-const getVisuals = (mediaInfo: any) => normalizeMedia(mediaInfo).filter(m => !isAudio(m.mime_type))
-
-const formatAudioDuration = (duration?: number) => {
-  if (!duration) return `0''`
-  const d = Math.floor(duration)
-  if (d < 60) return `${d}''`
-  const m = Math.floor(d / 60)
-  const s = d % 60
-  const sStr = s < 10 ? `0${s}` : `${s}`
-  return `${m}'${sStr}"`
-}
-
 const handleImgError = (e: Event) => {
   const target = e.target as HTMLImageElement
   target.style.display = 'none'
 }
-
-// --- 跳转逻辑 ---
 
 const handleTagClick = (tag: string) => {
   const tagName = tag.replace('#', '')
@@ -170,6 +171,27 @@ const handleUserClick = (userId: number) => {
 }
 
 // --- 媒体交互 ---
+const prevMedia = () => {
+  if (activeMediaIndex.value > 0) {
+    activeMediaIndex.value--
+  }
+}
+
+const nextMedia = () => {
+  if (activeMediaIndex.value < visualMedias.value.length - 1) {
+    activeMediaIndex.value++
+  }
+}
+
+const handleMediaWheel = (e: WheelEvent) => {
+  if (visualMedias.value.length <= 1) return
+  if (e.deltaY > 0) {
+    nextMedia()
+  } else {
+    prevMedia()
+  }
+}
+
 const openPreview = (url: string, type: 'image' | 'video') => {
   stopAudio()
   previewOverlay.value = {
@@ -208,7 +230,7 @@ const stopAudio = () => {
   currentAudioUrl.value = ''
 }
 
-// --- 数据获取 (走缓存) ---
+// --- 数据获取 ---
 const fetchComments = async (postId: number) => {
   try {
     const res: any = await cacheStore.getComments(postId)
@@ -439,10 +461,7 @@ const handleSendComment = async () => {
     await createCommentApi(params)
     showMessage('success', '发送成功')
     handleCancel()
-
-    // 3. 修复 TS 错误：id.toString() -> id
     await fetchComments(post.value.id)
-
     stats.value.comment_count++
   } catch (error) {
     showMessage('error', '发送失败，请稍后重试')
@@ -534,26 +553,53 @@ const formatTime = (time: string) => {
 
         <div class="detail-card" v-if="post">
 
-          <div class="visual-container">
-            <template v-if="hasMedia">
+          <div class="visual-container" @wheel.prevent="handleMediaWheel">
+            <template v-if="hasVisualMedia">
               <div class="blur-background" :style="{ backgroundImage: `url(${currentMedia?.url})` }"></div>
+
               <div class="media-stage">
-                <video
-                    v-if="isMainVideo(currentMedia)"
-                    :src="currentMedia?.url"
-                    controls
-                    autoplay
-                    class="media-content"
-                />
-                <img
-                    v-else
-                    :src="currentMedia?.url"
-                    class="media-content"
-                    alt="content"
-                />
+                <Transition name="media-fade" mode="out-in">
+                  <div :key="currentMedia?.url" class="media-content-wrapper">
+                    <video
+                        v-if="isMainVideo(currentMedia)"
+                        :src="currentMedia?.url"
+                        controls
+                        autoplay
+                        class="media-content"
+                    />
+                    <img
+                        v-else
+                        :src="currentMedia?.url"
+                        class="media-content"
+                        alt="content"
+                    />
+                  </div>
+                </Transition>
               </div>
-              <div v-if="medias.length > 1" class="media-dots">
-                <span v-for="(_, i) in medias" :key="i" :class="{ active: i === activeMediaIndex }"
+
+              <div class="media-nav-overlay">
+                <button
+                    v-if="activeMediaIndex > 0"
+                    class="nav-btn prev"
+                    @click.stop="prevMedia"
+                >
+                  <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+                  </svg>
+                </button>
+                <button
+                    v-if="activeMediaIndex < visualMedias.length - 1"
+                    class="nav-btn next"
+                    @click.stop="nextMedia"
+                >
+                  <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+                  </svg>
+                </button>
+              </div>
+
+              <div v-if="visualMedias.length > 1" class="media-dots">
+                <span v-for="(_, i) in visualMedias" :key="i" :class="{ active: i === activeMediaIndex }"
                       @click="activeMediaIndex = i"></span>
               </div>
             </template>
@@ -604,6 +650,23 @@ const formatTime = (time: string) => {
               <article class="article-content">
                 <h2 class="title">{{ post.title }}</h2>
                 <pre class="content">{{ cleanContent }}</pre>
+
+                <div v-if="postAudios.length > 0" class="post-audio-section">
+                  <div
+                      v-for="(audio, idx) in postAudios"
+                      :key="idx"
+                      class="audio-bubble"
+                      :class="{ playing: currentAudioUrl === audio.url && isAudioPlaying }"
+                      @click.stop="toggleAudio(audio.url)"
+                  >
+                    <span class="audio-icon">
+                      <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor"
+                                                                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+                    </span>
+                    <span class="audio-time">{{ formatAudioDuration(audio.duration) }}</span>
+                  </div>
+                </div>
+
                 <div class="tags" v-if="extractedTags.length > 0">
                   <span
                       v-for="tag in extractedTags"
@@ -726,7 +789,7 @@ const formatTime = (time: string) => {
                             </span>
                             <span v-if="sub.reply_to_nickname" class="reply-wrapper">
                               回复
-                              <span class="at-name" @click.stop="handleUserClick(sub.reply_to_user_id)">
+                              <span class="at-name clickable" @click.stop="handleUserClick(sub.reply_to_user_id)">
                                 @{{ sub.reply_to_nickname }}
                               </span>
                             </span>
@@ -1035,6 +1098,62 @@ const formatTime = (time: string) => {
   object-fit: contain;
 }
 
+/* 媒体导航箭头样式 */
+.media-nav-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.nav-btn {
+  pointer-events: auto;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: all 0.3s;
+  opacity: 0;
+}
+
+.nav-btn.prev {
+  left: 20px;
+}
+
+.nav-btn.next {
+  right: 20px;
+}
+
+.visual-container:hover .nav-btn {
+  opacity: 1;
+}
+
+.nav-btn:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.media-content-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .text-poster {
   width: 100%;
   height: 100%;
@@ -1313,7 +1432,6 @@ button.follow-btn.is-following:hover {
   color: #FF4757;
 }
 
-/* 关键修复：添加 clickable 样式 */
 .clickable {
   cursor: pointer;
   transition: color 0.2s;
@@ -1323,7 +1441,14 @@ button.follow-btn.is-following:hover {
   color: #00AEEC;
 }
 
-/* 音频列表样式 */
+.post-audio-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
 .c-audio-list {
   display: flex;
   flex-direction: column;
@@ -1332,7 +1457,6 @@ button.follow-btn.is-following:hover {
   margin-bottom: 4px;
 }
 
-/* 视觉媒体样式 */
 .c-media-grid {
   display: flex;
   gap: 6px;
@@ -1386,7 +1510,6 @@ button.follow-btn.is-following:hover {
   pointer-events: none;
 }
 
-/* 音频气泡样式 */
 .audio-bubble {
   display: flex;
   align-items: center;
@@ -1417,7 +1540,6 @@ button.follow-btn.is-following:hover {
   font-weight: 600;
 }
 
-/* 子评论样式 */
 .sub-comments {
   margin-left: 44px;
   margin-top: 16px;
@@ -1543,13 +1665,6 @@ button.follow-btn.is-following:hover {
 }
 
 /* 上传预览音频容器：不限制正方形 */
-.preview-item.is-audio {
-  width: auto;
-  height: auto;
-  background: transparent;
-  border: none;
-}
-
 .preview-item img, .preview-item video {
   width: 100%;
   height: 100%;
@@ -1722,49 +1837,13 @@ button.follow-btn.is-following:hover {
   border-radius: 4px;
 }
 
-.media-viewer-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.95);
-  z-index: 2000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+/* 媒体切换动画 */
+.media-fade-enter-active, .media-fade-leave-active {
+  transition: opacity 0.3s ease;
 }
 
-.media-viewer-content {
-  max-width: 90vw;
-  max-height: 90vh;
-}
-
-.viewer-img, .viewer-video {
-  max-width: 100%;
-  max-height: 90vh;
-  object-fit: contain;
-}
-
-.viewer-close {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  color: #fff;
-  font-size: 24px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.viewer-close:hover {
-  background: rgba(255, 255, 255, 0.2);
+.media-fade-enter-from, .media-fade-leave-to {
+  opacity: 0;
 }
 
 .detail-zoom-enter-active, .detail-zoom-leave-active {
