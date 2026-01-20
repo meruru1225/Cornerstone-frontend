@@ -25,10 +25,13 @@ interface LocalMediaData extends MediaUploadData {
   previewUrl: string
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: boolean
   postId: number | null
-}>()
+  entryMode?: 'main' | 'blank'
+}>(), {
+  entryMode: 'main'
+})
 
 const emit = defineEmits(['update:modelValue'])
 const userStore = useUserStore()
@@ -119,6 +122,9 @@ const inputPlaceholder = computed(() => {
   }
   return '说点什么...'
 })
+
+const overlayClass = computed(() => (props.entryMode === 'blank' ? 'is-blank' : ''))
+const cardClass = computed(() => (props.entryMode === 'blank' ? 'is-wide' : ''))
 
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
@@ -288,23 +294,6 @@ const initData = async (id: number) => {
   }
 }
 
-watch(() => props.modelValue, (val) => {
-  if (val && props.postId) {
-    initData(props.postId)
-    activeMediaIndex.value = 0
-    handleCancel()
-  } else {
-    setTimeout(() => {
-      post.value = null
-      comments.value = []
-      clearMedia()
-      replyTarget.value = null
-      commentText.value = ''
-      stopAudio()
-    }, 300)
-  }
-})
-
 // --- 核心交互操作 ---
 
 const triggerUpload = () => {
@@ -473,6 +462,29 @@ const handleCancel = () => {
   isInputFocused.value = false
 }
 
+watch(
+  [() => props.modelValue, () => props.postId],
+  ([val, id]) => {
+    if (val && id) {
+      initData(id)
+      activeMediaIndex.value = 0
+      handleCancel()
+      return
+    }
+    if (!val) {
+      setTimeout(() => {
+        post.value = null
+        comments.value = []
+        clearMedia()
+        replyTarget.value = null
+        commentText.value = ''
+        stopAudio()
+      }, 300)
+    }
+  },
+  { immediate: true }
+)
+
 const handleSendComment = async () => {
   if (!checkLogin()) return
   if ((!commentText.value.trim() && commentMedia.value.length === 0) || !post.value) return
@@ -497,6 +509,7 @@ const handleSendComment = async () => {
     await createCommentApi(params)
     showMessage('success', '发送成功')
     handleCancel()
+    cacheStore.clearComments(post.value.id)
     await fetchComments(post.value.id)
     stats.value.comment_count++
   } catch (error) {
@@ -590,9 +603,9 @@ const formatFullDate = (time: string) => {
     </Transition>
 
     <Transition name="detail-zoom">
-      <div v-if="modelValue" class="detail-overlay" @click.self="close">
+      <div v-if="modelValue" class="detail-overlay" :class="overlayClass" @click.self="close">
 
-        <div class="detail-card" v-if="post">
+        <div class="detail-card" :class="cardClass" v-if="post">
 
           <div class="visual-container" @wheel.prevent="handleMediaWheel">
             <template v-if="hasVisualMedia">
@@ -1114,6 +1127,11 @@ const formatFullDate = (time: string) => {
   z-index: 1000;
 }
 
+.detail-overlay.is-blank {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(14px);
+}
+
 .detail-card {
   display: flex;
   width: 90vw;
@@ -1123,6 +1141,12 @@ const formatFullDate = (time: string) => {
   border-radius: 24px;
   overflow: hidden;
   box-shadow: 0 50px 100px rgba(0, 0, 0, 0.5);
+}
+
+.detail-card.is-wide {
+  width: 96vw;
+  max-width: 1680px;
+  height: 88vh;
 }
 
 .visual-container {

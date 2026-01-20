@@ -4,6 +4,7 @@ import {useUserStore} from '../stores/user'
 // 引入布局和页面
 import MainLayout from '../layouts/MainLayout.vue'
 import HomeView from '../views/HomeView.vue'
+import BlankLayout from '../layouts/BlankLayout.vue'
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -15,27 +16,32 @@ const router = createRouter({
                 {
                     path: '', // 默认首页
                     name: 'home',
-                    component: HomeView
+                    component: HomeView,
+                    meta: { title: '首页' }
                 },
                 {
                     path: '/search',
                     name: 'search',
-                    component: () => import('../views/SearchView.vue')
+                    component: () => import('../views/SearchView.vue'),
+                    meta: { title: '搜索' }
                 },
                 {
                     path: '/user-tags',
                     name: 'user-tags',
-                    component: () => import('../views/UserTagView.vue')
+                    component: () => import('../views/UserTagView.vue'),
+                    meta: { title: '话题' }
                 },
                 {
                     path: '/ai',
                     name: 'ai',
-                    component: () => import('../views/AIView.vue')
+                    component: () => import('../views/AIView.vue'),
+                    meta: { title: '灵感AI' }
                 },
                 {
                     path: '/chat',
                     name: 'chat',
-                    component: () => import('../views/ChatView.vue')
+                    component: () => import('../views/ChatView.vue'),
+                    meta: { title: '聊天' }
                 },
                 {
                     path: '/notify',
@@ -60,6 +66,18 @@ const router = createRouter({
         {
             path: '/admin',
             component: () => import('../layouts/AdminLayout.vue')
+        },
+        {
+            path: '/post',
+            component: BlankLayout,
+            children: [
+                {
+                    path: '',
+                    name: 'post',
+                    component: () => import('../views/PostDetailView.vue'),
+                    meta: { title: '帖子详情' }
+                }
+            ]
         }
     ]
 })

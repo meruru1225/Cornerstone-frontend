@@ -37,10 +37,15 @@ export const usePostCacheStore = defineStore('post-cache', () => {
         commentsCache.delete(postId)
     }
 
+    const clearComments = (postId: number) => {
+        commentsCache.delete(postId)
+    }
+
     return {
         prefetch,
         getDetail,
         getComments,
-        clearCache
+        clearCache,
+        clearComments
     }
 })
