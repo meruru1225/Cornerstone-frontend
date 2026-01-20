@@ -1,27 +1,29 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { loginByPasswordApi, loginByPhoneApi, logoutApi } from '../api/auth'
-import { getUserInfoApi, getUserRolesApi, type UserHomeInfo } from '../api/user'
+import { getUserInfoApi, getUserRolesApi, type CurrentUserInfo } from '../api/user'
 
 export const useUserStore = defineStore('user', () => {
-  const userInfo = ref<UserHomeInfo | null>(null)
+  const userInfo = ref<CurrentUserInfo | null>(null)
   const isLoggedIn = ref(false)
   const roles = ref<string[]>([])
   // userId 可以从 userInfo.user_id 获取，或者单独存，这里我们主要依赖 userInfo
   
   // 统一登录入口，根据 method 分发
-  const login = async (payload: { account?: string, password?: string, smsCode?: string, method: 'password' | 'sms' }) => {
+  const login = async (payload: { account?: string, password?: string, smsCode?: string, method: 'password' | 'sms', remember?: boolean }) => {
     try {
       if (payload.method === 'password') {
         await loginByPasswordApi({
           account: payload.account || '',
-          password: payload.password || ''
+          password: payload.password || '',
+          remember: payload.remember
         })
       } else {
         // 短信登录
         await loginByPhoneApi({
           phone: payload.account || '',
-          code: payload.smsCode || ''
+          code: payload.smsCode || '',
+          remember: payload.remember
         })
       }
 

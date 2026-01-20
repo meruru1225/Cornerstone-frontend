@@ -34,8 +34,11 @@ const formData = reactive({
   gender: 1,
   birthday: '',
   region: '',
-  bio: ''
+  bio: '',
+  remember: false
 })
+
+// [新增] 格式化函数
 
 const isRegister = computed(() => currentMode.value === 'register')
 const isForget = computed(() => currentMode.value === 'forget')
@@ -304,7 +307,10 @@ const prevStep = () => {
                   </div>
 
                   <div class="options-row" v-if="currentMode === 'login'">
-                    <label class="check-label"><input type="checkbox"> <span>记住我</span></label>
+                    <label class="check-label">
+                      <input type="checkbox" v-model="formData.remember"> 
+                      <span>记住我</span>
+                    </label>
                     <span class="link-btn" @click="toggleMode('forget')">忘记密码?</span>
                   </div>
                 </div>
@@ -979,5 +985,27 @@ const prevStep = () => {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.fade-auth-enter-active,
+.fade-auth-leave-active {
+  transition: all 0.3s ease;
+}
+
+.fade-auth-enter-from,
+.fade-auth-leave-to {
+  opacity: 0;
+  backdrop-filter: blur(0px);
+}
+
+.fade-auth-enter-active .auth-card,
+.fade-auth-leave-active .auth-card {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.fade-auth-enter-from .auth-card,
+.fade-auth-leave-to .auth-card {
+  transform: scale(0.95) translateY(20px);
+  opacity: 0;
 }
 </style>

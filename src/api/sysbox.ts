@@ -8,20 +8,20 @@ export interface SysboxMsgPayload {
 // 收件箱消息项接口
 export interface SysboxMsgItem {
   id: string
-  senderId: number
-  senderName: string
-  avatarUrl: string
+  sender_id: number
+  sender_name: string
+  avatar_url: string
   type: number // 1:点赞帖子, 5:关注用户 等
-  targetId: number
+  target_id: number
   content: string
   payload: SysboxMsgPayload | null
-  isRead: boolean
-  createdAt: string
+  is_read: boolean
+  created_at: string
 }
 
 // 未读数量返回接口
 export interface UnreadCountResult {
-  unreadCount: number
+  unread_count: number
 }
 
 // 分页参数

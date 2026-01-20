@@ -19,7 +19,7 @@ export interface CommentItem {
   nickname: string
   avatar_url: string
   content: string
-  media_info?: CommentMediaItem | CommentMediaItem[] // API文档中既有对象又有数组的情况，兼容处理
+  media_info?: CommentMediaItem[]
   root_id: number
   parent_id: number
   reply_to_user_id: number

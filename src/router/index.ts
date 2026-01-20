@@ -28,27 +28,29 @@ const router = createRouter({
                     component: () => import('../views/UserTagView.vue')
                 },
                 {
-                    path: 'ai',
+                    path: '/ai',
                     name: 'ai',
                     component: () => import('../views/AIView.vue')
                 },
                 {
-                    path: 'chat',
+                    path: '/chat',
                     name: 'chat',
                     component: () => import('../views/ChatView.vue')
                 },
                 {
-                    path: 'inbox',
-                    name: 'inbox',
-                    component: () => import('../views/ChatView.vue') // 复用消息中心结构
+                    path: '/notify',
+                    name: 'notify',
+                    component: () => import('../views/NotifyView.vue'),
+                    meta: { title: '消息中心' }
                 },
                 {
-                    path: 'profile',
-                    name: 'profile',
-                    component: () => import('../views/HomeView.vue') // 暂时占位
+                    path: '/settings/account',
+                    name: 'settings-account',
+                    component: () => import('../views/UserSetting.vue'),
+                    meta: { title: '账号设置' }
                 },
                 {
-                    path: 'settings/profile',
+                    path: '/settings/profile',
                     name: 'settings-profile',
                     component: () => import('../views/UserInfoModifyView.vue'),
                     meta: { title: '编辑资料' }

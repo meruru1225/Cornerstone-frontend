@@ -3,11 +3,13 @@ import request from './request'
 export interface LoginParams {
   account: string
   password: string
+  remember?: boolean
 }
 
 export interface PhoneLoginParams {
   phone: string
   code: string
+  remember?: boolean
 }
 
 export interface RegisterParams {
@@ -55,6 +57,7 @@ export function loginByPhoneApi(data: PhoneLoginParams) {
   })
 }
 
+// 登出
 export function logoutApi() {
   return request({
     url: '/user/logout',
@@ -62,6 +65,7 @@ export function logoutApi() {
   })
 }
 
+// 注册
 export function registerApi(data: RegisterParams) {
   return request({
     url: '/user/register',
@@ -70,7 +74,7 @@ export function registerApi(data: RegisterParams) {
   })
 }
 
-// 发送验证码接口
+// 发送验证码
 export function sendCodeApi(phone: string) {
   return request({
     url: '/user/sms/send',
@@ -79,6 +83,7 @@ export function sendCodeApi(phone: string) {
   })
 }
 
+// 忘记密码
 export function forgetPasswordApi(data: ForgetPasswordParams) {
   return request({
     url: '/user/password/forget',

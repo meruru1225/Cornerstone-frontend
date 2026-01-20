@@ -1,5 +1,18 @@
 import request from './request'
 
+export interface CurrentUserInfo {
+  user_id: number
+  username: string
+  phone: string
+  nickname: string
+  avatar_url: string
+  bio: string
+  gender: number
+  region: string
+  birthday: string
+  created_at: string
+}
+
 export interface UserHomeInfo {
   user_id: number
   nickname: string
