@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import {ref, reactive, computed} from 'vue'
 import {ElMessage} from 'element-plus'
-import {VueDatePicker} from '@vuepic/vue-datepicker'
-import '@vuepic/vue-datepicker/dist/main.css'
-import {zhCN} from 'date-fns/locale'
 import {useUserStore} from '../stores/user'
 import {registerApi, sendCodeApi, forgetPasswordApi} from '../api/auth'
 
@@ -35,19 +32,10 @@ const formData = reactive({
   smsCode: '',
   nickname: '',
   gender: 1,
-  birthday: null as Date | null,
+  birthday: '',
   region: '',
   bio: ''
 })
-
-// [新增] 格式化函数
-const formatDate = (date: Date) => {
-  if (!date) return ''
-  const year = date.getFullYear()
-  const month = date.getMonth() + 1
-  const day = date.getDate()
-  return `${year}年${month}月${day}日`
-}
 
 const isRegister = computed(() => currentMode.value === 'register')
 const isForget = computed(() => currentMode.value === 'forget')
@@ -162,7 +150,7 @@ const handleSubmit = async () => {
           password: formData.password,
           nickname: formData.nickname,
           gender: formData.gender,
-          birthday: formData.birthday ? new Date(formData.birthday).toISOString().split('T')[0] : undefined,
+          birthday: formData.birthday || undefined,
           region: formData.region,
           bio: formData.bio
         })
@@ -337,15 +325,14 @@ const prevStep = () => {
                           <path fill="currentColor"
                                 d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
                         </svg>
-                        <VueDatePicker
-                            class="g-date-picker-reset"
+                        <el-date-picker
                             v-model="formData.birthday"
-                            :locale="zhCN"
-                            :enable-time-picker="false"
-                            auto-apply
-                            :format="formatDate"
+                            type="date"
                             placeholder="选择生日"
-                            :teleport="true"
+                            format="YYYY年MM月DD日"
+                            value-format="YYYY-MM-DD"
+                            :editable="false"
+                            :clearable="false"
                         />
                       </div>
                       <div class="g-input-item small">
@@ -397,8 +384,6 @@ const prevStep = () => {
 </template>
 
 <style scoped>
-/* 样式部分保持不变，已复用 form.css */
-/* (...省略重复的样式代码，请保留原文件中的 css 内容...) */
 .page-container {
   position: fixed;
   top: 0;

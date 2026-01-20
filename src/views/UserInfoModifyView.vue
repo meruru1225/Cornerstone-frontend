@@ -1,18 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { VueDatePicker } from '@vuepic/vue-datepicker'
-import '@vuepic/vue-datepicker/dist/main.css'
-// 确保引入 zhCN 对象
-import { zhCN } from 'date-fns/locale'
+import {ref, onMounted, reactive} from 'vue'
+import {useRouter} from 'vue-router'
+import {ElMessage} from 'element-plus'
 import {
   getUserInfoApi,
   updateUserInfoApi,
   uploadAvatarApi,
   type UpdateUserInfoParams
 } from '../api/user'
-import { useUserStore } from '../stores/user'
+import {useUserStore} from '../stores/user'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -26,18 +22,9 @@ const form = reactive({
   nickname: '',
   bio: '',
   gender: 0,
-  birthday: null as Date | null,
+  birthday: '',
   region: ''
 })
-
-// [新增] 日期格式化函数：强制显示为 "xxxx年xx月xx日"
-const formatDate = (date: Date) => {
-  if (!date) return ''
-  const year = date.getFullYear()
-  const month = date.getMonth() + 1
-  const day = date.getDate()
-  return `${year}年${month}月${day}日`
-}
 
 const initData = async () => {
   loading.value = true
@@ -47,8 +34,7 @@ const initData = async () => {
     form.nickname = data.nickname
     form.bio = data.bio
     form.gender = data.gender
-    // 兼容后端可能返回的字符串日期
-    form.birthday = data.birthday ? new Date(data.birthday) : null
+    form.birthday = data.birthday || ''
     form.region = data.region
     avatarPreview.value = data.avatar_url
   } catch (error) {
@@ -90,8 +76,7 @@ const handleSave = async () => {
 
     const submitData: UpdateUserInfoParams = {
       ...form,
-      // 提交时转回标准 YYYY-MM-DD
-      birthday: form.birthday ? form.birthday.toISOString().split('T')[0] : undefined
+      birthday: form.birthday || undefined
     }
 
     await updateUserInfoApi(submitData)
@@ -182,16 +167,18 @@ onMounted(() => {
           <div class="form-group half">
             <label class="form-label">生日</label>
             <div class="g-input-item date-wrapper">
-              <svg class="icon date-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
-              <VueDatePicker
-                  class="g-date-picker-reset"
+              <svg class="icon date-icon" viewBox="0 0 24 24">
+                <path fill="currentColor"
+                      d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+              </svg>
+              <el-date-picker
                   v-model="form.birthday"
-                  :locale="zhCN"
-                  :enable-time-picker="false"
-                  auto-apply
-                  :format="formatDate"
+                  type="date"
                   placeholder="选择生日"
-                  :teleport="true"
+                  format="YYYY年MM月DD日"
+                  value-format="YYYY-MM-DD"
+                  :editable="false"
+                  :clearable="false"
               />
             </div>
           </div>
@@ -216,7 +203,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 样式保持不变，已复用 form.css */
 .modify-view {
   width: 100%;
   max-width: 800px;
@@ -310,8 +296,13 @@ onMounted(() => {
   transition: opacity 0.2s;
 }
 
-.avatar-wrapper:hover .avatar-mask { opacity: 1; }
-.avatar-wrapper:hover .avatar-img { filter: blur(2px); }
+.avatar-wrapper:hover .avatar-mask {
+  opacity: 1;
+}
+
+.avatar-wrapper:hover .avatar-img {
+  filter: blur(2px);
+}
 
 .avatar-tip {
   font-size: 13px;
@@ -403,7 +394,11 @@ onMounted(() => {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 </style>

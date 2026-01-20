@@ -168,3 +168,32 @@
 .el-message-box__headerbtn:hover .el-message-box__close {
     color: #00AEEC !important;
 }
+
+.el-date-editor.el-input {
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1;
+}
+
+.el-date-editor .el-input__wrapper {
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    height: 100% !important;
+}
+
+.el-date-editor .el-input__inner {
+    font-size: 14px !important;
+    color: var(--text-main, #18191C) !important;
+    height: 100% !important;
+    font-family: inherit !important;
+    cursor: pointer !important;
+}
+
+.el-date-editor .el-input__prefix {
+    display: none !important;
+}
+
+.el-date-editor .el-input__inner::placeholder {
+    color: var(--text-sub, #9499A0) !important;
+}
