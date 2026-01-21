@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import {watch} from 'vue'
 import PostCard from './PostCard.vue'
 import {type PostItem} from '../api/post'
+import {getBatchLikesApi} from '../api/post-action'
 
-defineProps<{
+const props = defineProps<{
   posts: PostItem[]
   loading?: boolean
 }>()
@@ -10,6 +12,27 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'post-click', id: number): void
 }>()
+
+watch(() => props.posts, async (newPosts) => {
+  if (newPosts && newPosts.length > 0) {
+    const ids = newPosts.map(p => p.id)
+    try {
+      const res = await getBatchLikesApi(ids)
+      const statusData = res.data || (res as any)
+
+      if (Array.isArray(statusData)) {
+        statusData.forEach((status, index) => {
+          if (newPosts[index]) {
+            newPosts[index].like_count = status.like_count
+            newPosts[index].is_liked = status.is_liked
+          }
+        })
+      }
+    } catch (e) {
+      console.error('批量获取帖子状态失败:', e)
+    }
+  }
+}, {immediate: true, deep: true})
 </script>
 
 <template>

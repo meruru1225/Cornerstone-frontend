@@ -60,6 +60,12 @@ const router = createRouter({
                     name: 'settings-profile',
                     component: () => import('../views/UserInfoModifyView.vue'),
                     meta: { title: '编辑资料' }
+                },
+                {
+                    path: '/space',
+                    name: 'space',
+                    component: () => import('../views/SpaceView.vue'),
+                    meta: { title: '个人空间' }
                 }
             ]
         },

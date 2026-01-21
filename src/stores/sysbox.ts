@@ -8,16 +8,19 @@ export const useSysboxStore = defineStore('sysbox', () => {
     const fetchUnreadCount = async () => {
         try {
             const res: any = await getUnreadCountApi()
-            unreadCount.value = typeof res === 'number' ? res : (res.data?.unreadCount || res.unreadCount || 0)
+            if (typeof res === 'number') {
+                unreadCount.value = res
+            } else {
+                const data = res.data || res
+                unreadCount.value = data?.unread_count ?? data?.unreadCount ?? 0
+            }
         } catch (error) {
             console.error('获取未读数失败', error)
         }
     }
 
     const decreaseCount = (amount = 1) => {
-        if (unreadCount.value > 0) {
-            unreadCount.value = Math.max(0, unreadCount.value - amount)
-        }
+        unreadCount.value = Math.max(0, unreadCount.value - amount)
     }
 
     const clearCount = () => {

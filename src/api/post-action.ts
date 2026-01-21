@@ -40,9 +40,10 @@ export interface PostActionState {
   is_collected: boolean
 }
 
-// 批量获取点赞数返回接口
-export interface BatchLikesResult {
-  likes: Record<string, number>
+// 批量获取点赞状态返回接口
+export interface BatchLikeItem {
+  like_count: number
+  is_liked: boolean
 }
 
 // 分页参数
@@ -100,11 +101,11 @@ export function getSubCommentsApi(rootId: number | string, params: PageParams) {
 }
 
 /**
- * 批量获取帖子点赞数量
+ * 批量获取帖子点赞状态
  * @param postIds 帖子ID数组
  */
 export function getBatchLikesApi(postIds: number[]) {
-  return request({
+  return request<{ data: BatchLikeItem[] }>({ // 对应 OpenAPI 中的 array 返回
     url: '/post/action/batch/likes',
     method: 'post',
     data: { post_ids: postIds }

@@ -73,13 +73,43 @@ export interface AuditPostParams {
   status: number
 }
 
+// 推荐流参数
+export interface RecommendParams {
+  cursor?: string
+  session_id?: string
+  page_size?: number | string
+}
+
+// 生成或获取 Session ID
+const getSessionId = () => {
+  const key = 'x-session-id'
+  let sid = localStorage.getItem(key)
+  if (!sid) {
+    // Simple UUID v4 generator
+    sid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0
+      const v = c === 'x' ? r : (r & 0x3) | 0x8
+      return v.toString(16)
+    })
+    localStorage.setItem(key, sid)
+  }
+  return sid
+}
+
 /**
  * 获取推荐流帖子
+ * @param params 推荐流参数
  */
-export function getRecommendPostsApi() {
+export function getRecommendPostsApi(params?: RecommendParams) {
+  const sessionId = params?.session_id ?? getSessionId()
+  const mergedParams = {
+    ...params,
+    session_id: sessionId
+  }
   return request({
     url: '/posts/recommend',
-    method: 'get'
+    method: 'get',
+    params: mergedParams
   })
 }
 
@@ -92,6 +122,13 @@ export function searchPostsApi(keyword: string) {
     url: '/posts/search',
     method: 'get',
     params: { keyword }
+  })
+}
+
+export function getLatestPostsApi() {
+  return request({
+    url: '/posts/lastest',
+    method: 'get'
   })
 }
 
