@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
-import {useRoute} from 'vue-router'
+import {useRoute, useRouter} from 'vue-router'
 import {
   type ConversationItem,
   getConversationsApi,
@@ -22,6 +22,7 @@ const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726
 const userStore = useUserStore()
 const imStore = useImStore()
 const route = useRoute()
+const router = useRouter()
 const conversations = ref<ConversationItem[]>([])
 const currentConv = ref<ConversationItem | null>(null)
 const messages = ref<MsgItem[]>([])
@@ -187,6 +188,13 @@ const updateConversationLastMsg = (msg: MsgItem) => {
   } else {
     fetchList()
   }
+}
+
+const handlePeerAvatarClick = (senderId: number) => {
+  if (senderId === currentUserId.value) return
+  const targetId = currentConv.value?.peer_id || senderId
+  if (!targetId) return
+  router.push({ path: '/space', query: { id: String(targetId) } })
 }
 
 const selectConv = async (conv: ConversationItem) => {
@@ -541,7 +549,10 @@ const updateWaveform = () => {
             <div v-if="isLoadingHistory" class="history-loading">加载中...</div>
             <div v-for="m in messages" :key="m.id" class="msg-row" :class="{ 'is-me': m.sender_id === currentUserId }">
               <img :src="m.sender_id === currentUserId ? (userStore.userInfo?.avatar_url || defaultAvatar) : (currentConv.cover_url || defaultAvatar)"
-                   class="bubble-avatar" alt="用户" />
+                   class="bubble-avatar"
+                   :class="{ clickable: m.sender_id !== currentUserId }"
+                   alt="用户"
+                   @click="handlePeerAvatarClick(m.sender_id)" />
               <div class="bubble-wrapper">
                 <div class="bubble-box" :class="{ 'sending': m.status === 'sending', 'fail': m.status === 'fail' }">
 
@@ -695,6 +706,7 @@ const updateWaveform = () => {
 .msg-row { display: flex; gap: 14px; align-items: flex-end; }
 .msg-row.is-me { flex-direction: row-reverse; }
 .bubble-avatar { width: 44px; height: 44px; border-radius: 14px; flex-shrink: 0; border: 1px solid #f0f0f0; object-fit: cover; }
+.bubble-avatar.clickable { cursor: pointer; }
 
 .bubble-wrapper { max-width: 70%; display: flex; flex-direction: column; position: relative; }
 .is-me .bubble-wrapper { align-items: flex-end; }
