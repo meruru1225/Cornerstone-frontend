@@ -218,6 +218,8 @@ const selectConv = async (conv: ConversationItem) => {
       // 后端返回倒序，前端转正序
       messages.value = remoteList.sort((a, b) => a.seq - b.seq)
       scrollToBottom(true)
+      await nextTick()
+      maybeAutoLoadHistory()
 
       // 标记已读
       const lastMsg = messages.value[messages.value.length - 1]
@@ -265,6 +267,17 @@ const loadMoreHistory = async () => {
     console.error(e)
   } finally {
     isLoadingHistory.value = false
+    await nextTick()
+    maybeAutoLoadHistory()
+  }
+}
+
+const maybeAutoLoadHistory = () => {
+  if (isHistoryFinished.value || isLoadingHistory.value) return
+  const listEl = msgListRef.value
+  if (!listEl) return
+  if (listEl.scrollHeight <= listEl.clientHeight + 40) {
+    loadMoreHistory()
   }
 }
 
