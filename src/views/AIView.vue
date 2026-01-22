@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
 import {converseAgentApi} from "../api/agent.ts";
+import {useUserStore} from '../stores/user'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -11,6 +12,8 @@ interface Message {
 }
 
 interface ChatSession {
+  userId: number
+  key: string
   chatId: string
   title: string
   messages: Message[]
@@ -18,7 +21,8 @@ interface ChatSession {
 }
 
 const DB_NAME = 'CornerstoneDB'
-const STORE_NAME = 'agent_message_history'
+const STORE_NAME = 'agent_message_history_v2'
+const LEGACY_STORE_NAME = 'agent_message_history'
 const EXPIRE_DAYS = 30
 
 const md: MarkdownIt = new MarkdownIt({
@@ -41,14 +45,33 @@ const isFirstMessage = ref(true)
 const isStreaming = ref(false)
 const chatId = ref("0")
 const chatScrollContainer = ref<HTMLElement | null>(null)
+const userStore = useUserStore()
+const currentUserId = computed(() => userStore.userInfo?.user_id || 0)
+const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+const userAvatarUrl = computed(() => userStore.userInfo?.avatar_url || defaultAvatar)
 
 const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 4)
+    const request = indexedDB.open(DB_NAME, 5)
     request.onupgradeneeded = (e: any) => {
       const db = e.target.result
+      const tx = request.transaction
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'chatId' })
+        db.createObjectStore(STORE_NAME, { keyPath: 'key' })
+      }
+      if (db.objectStoreNames.contains(LEGACY_STORE_NAME) && tx) {
+        const legacyStore = tx.objectStore(LEGACY_STORE_NAME)
+        const newStore = tx.objectStore(STORE_NAME)
+        const legacyRequest = legacyStore.getAll()
+        legacyRequest.onsuccess = () => {
+          const list = legacyRequest.result || []
+          list.forEach((s: any) => {
+            const chatIdVal = s.chatId || s.chat_id || s.id || '0'
+            const userIdVal = s.userId || 0
+            const keyVal = `${userIdVal}_${chatIdVal}`
+            newStore.put({ ...s, chatId: chatIdVal, userId: userIdVal, key: keyVal })
+          })
+        }
       }
     }
     request.onsuccess = () => resolve(request.result)
@@ -66,9 +89,11 @@ const loadHistory = async () => {
     request.onsuccess = () => {
       const now = Date.now()
       const expireTime = EXPIRE_DAYS * 24 * 60 * 60 * 1000
+      const userId = currentUserId.value || 0
       const validSessions = (request.result || []).filter((s: ChatSession) => {
+        if (s.userId !== userId) return false
         if (now - s.updatedAt > expireTime) {
-          store.delete(s.chatId)
+          store.delete(s.key)
           return false
         }
         return true
@@ -95,7 +120,11 @@ const saveCurrentChat = async () => {
   const firstUserMsg = messages.value.find(m => m.role === 'user')?.content || '新对话'
   const title = firstUserMsg.length > 25 ? firstUserMsg.substring(0, 25) + '...' : firstUserMsg
 
+  const userId = currentUserId.value || 0
+  const key = `${userId}_${chatId.value}`
   const sessionData: ChatSession = {
+    userId,
+    key,
     chatId: chatId.value,
     title,
     messages: JSON.parse(JSON.stringify(messages.value)),
@@ -131,6 +160,23 @@ const clearAllHistory = async () => {
   tx.objectStore(STORE_NAME).clear()
   sessions.value = []
   goToHome()
+}
+
+const claimGuestSessions = async (userId: number) => {
+  if (!userId) return
+  const db = await initDB()
+  const tx = db.transaction(STORE_NAME, 'readwrite')
+  const store = tx.objectStore(STORE_NAME)
+  const request = store.getAll()
+  request.onsuccess = () => {
+    const list: ChatSession[] = request.result || []
+    list.forEach((s) => {
+      if (s.userId !== 0) return
+      store.delete(s.key)
+      const key = `${userId}_${s.chatId}`
+      store.put({ ...s, userId, key })
+    })
+  }
 }
 
 const handleKeydown = (e: KeyboardEvent) => {
@@ -198,7 +244,20 @@ const handleSendMessage = async () => {
   }
 }
 
-onMounted(() => loadHistory())
+onMounted(() => {
+  loadHistory()
+  if (currentUserId.value) {
+    claimGuestSessions(currentUserId.value).then(loadHistory)
+  }
+})
+
+watch(currentUserId, (newVal, oldVal) => {
+  if (newVal && oldVal !== newVal) {
+    claimGuestSessions(newVal).then(loadHistory)
+  } else {
+    loadHistory()
+  }
+})
 </script>
 
 <template>
@@ -273,7 +332,7 @@ onMounted(() => loadHistory())
                 <circle cx="100" cy="25" r="12" fill="#FF6699"/>
               </svg>
             </div>
-            <div v-else class="user-avatar">ME</div>
+            <img v-else class="user-avatar" :src="userAvatarUrl" alt="avatar" />
           </div>
           <div class="bubble-container">
             <div
@@ -516,14 +575,9 @@ onMounted(() => loadHistory())
 .user-avatar {
   width: 40px;
   height: 40px;
-  background: #E3E5E7;
   border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 900;
-  color: #61666D;
+  object-fit: cover;
+  border: 1px solid rgba(0,0,0,0.05);
   flex-shrink: 0;
 }
 
