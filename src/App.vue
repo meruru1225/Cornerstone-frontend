@@ -11,6 +11,10 @@ const startIM = () => {
   }
 }
 
+const stopIM = () => {
+  imClient.disconnect()
+}
+
 onMounted(async () => {
   await userStore.fetchUserInfo()
   startIM()
@@ -19,6 +23,7 @@ onMounted(async () => {
 // 登录状态变化时重新连接
 watch(() => userStore.isLoggedIn, (val) => {
   if (val) startIM()
+  else stopIM()
 })
 </script>
 

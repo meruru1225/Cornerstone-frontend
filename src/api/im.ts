@@ -74,7 +74,7 @@ export const getHistoryMsgsApi = (params: { conv_id: number; last_seq: number; p
 
 export const sendMsgApi = (data: {
     conversation_id: number;
-    target_user_id: number;
+    target_user_id?: number;
     msg_type: number;
     content: string;
     payload?: MsgPayload[] | null;
@@ -91,24 +91,67 @@ class IMClient {
     private ws: WebSocket | null = null
     private baseUrl = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8080/api/im`
     private handlers: Set<(data: any) => void> = new Set()
+    private reconnectTimer: number | null = null
+    private isConnecting = false
+    private shouldReconnect = true
+
+    private scheduleReconnect() {
+        if (this.reconnectTimer !== null) return
+        this.reconnectTimer = window.setTimeout(() => {
+            this.reconnectTimer = null
+            if (this.shouldReconnect) this.connect()
+        }, 5000)
+    }
 
     async connect() {
-        if (this.ws?.readyState === WebSocket.OPEN) return
+        if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING || this.isConnecting) return
+        this.shouldReconnect = true
+        this.isConnecting = true
         try {
             const res: any = await getImTicketApi()
             const ticket = res.data?.ticket
-            if (!ticket) return
+            if (!ticket) {
+                this.isConnecting = false
+                return
+            }
             this.ws = new WebSocket(`${this.baseUrl}?ticket=${ticket}`)
+            this.ws.onopen = () => {
+                this.isConnecting = false
+            }
             this.ws.onmessage = (e) => {
-                const data = JSON.parse(e.data)
-                this.handlers.forEach(handler => handler(data))
+                try {
+                    const data = JSON.parse(e.data)
+                    this.handlers.forEach(handler => handler(data))
+                } catch (error) {
+                    console.error('IM消息解析失败', error)
+                }
+            }
+            this.ws.onerror = () => {
+                this.isConnecting = false
             }
             this.ws.onclose = () => {
-                setTimeout(() => this.connect(), 5000)
+                this.ws = null
+                this.isConnecting = false
+                if (this.shouldReconnect) this.scheduleReconnect()
             }
         } catch (e) {
+            this.isConnecting = false
             console.error('IM连接失败', e)
+            if (this.shouldReconnect) this.scheduleReconnect()
         }
+    }
+
+    disconnect() {
+        this.shouldReconnect = false
+        if (this.reconnectTimer !== null) {
+            clearTimeout(this.reconnectTimer)
+            this.reconnectTimer = null
+        }
+        if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+            this.ws.close()
+        }
+        this.ws = null
+        this.isConnecting = false
     }
 
     subscribe(handler: (data: any) => void) {

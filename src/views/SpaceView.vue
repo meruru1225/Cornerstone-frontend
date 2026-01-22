@@ -7,6 +7,7 @@ import PostGrid from '../components/PostGrid.vue'
 import PostDetail from '../components/PostDetail.vue'
 import UserGrid from '../components/UserGrid.vue'
 import {getUserHomeApi, batchGetUserSimpleApi, type UserHomeInfo} from '../api/user'
+import {getConversationsApi, type ConversationItem} from '../api/im'
 import {
   checkIsFollowApi,
   followUserApi,
@@ -169,6 +170,35 @@ const handlePostClick = (postId: number) => {
   showPostDetail.value = true
 }
 
+const handleChatClick = async () => {
+  if (!userInfo.value?.user_id) return
+  if (!userStore.isLoggedIn) return ElMessage.warning('请先登录')
+
+  const targetUserId = userInfo.value.user_id
+  let conversationId = 0
+
+  try {
+    const res: any = await getConversationsApi()
+    const list: ConversationItem[] = res.data || []
+    const existing = list.find(item => item.peer_id === targetUserId)
+    if (existing) conversationId = existing.conversation_id
+    if (conversationId) {
+      await router.push({ path: '/chat', query: { conv_id: String(conversationId) } })
+      return
+    }
+    await router.push({
+      path: '/chat',
+      query: {
+        target_user_id: String(targetUserId),
+        title: userInfo.value.nickname || '未知用户',
+        cover_url: userInfo.value.avatar_url || ''
+      }
+    })
+  } catch (error) {
+    ElMessage.error('发起私信失败')
+  }
+}
+
 const handleTabChange = (tab: string) => {
   activeTab.value = tab
   fetchTabContent()
@@ -229,7 +259,7 @@ onMounted(() => {
                   <span v-if="isFollowing">已关注</span>
                   <span v-else>+ 关注</span>
                 </button>
-                <button class="action-btn chat-btn">私信</button>
+                <button class="action-btn chat-btn" @click="handleChatClick">私信</button>
               </template>
             </div>
           </div>

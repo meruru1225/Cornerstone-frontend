@@ -1,17 +1,25 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import {computed, nextTick, onMounted, onUnmounted, ref, watch} from 'vue'
+import {useRoute} from 'vue-router'
 import {
-  MsgType, imClient, getConversationsApi, getHistoryMsgsApi,
-  sendMsgApi, markMsgReadApi, type MsgItem, type ConversationItem, type MsgPayload
+  type ConversationItem,
+  getConversationsApi,
+  getHistoryMsgsApi,
+  imClient,
+  markMsgReadApi,
+  type MsgItem,
+  type MsgPayload,
+  MsgType,
+  sendMsgApi
 } from '../api/im'
-import { uploadMediaApi } from '../api/media'
-import { useUserStore } from '../stores/user'
-import { ElMessage } from 'element-plus'
+import {uploadMediaApi} from '../api/media'
+import {useUserStore} from '../stores/user'
+import {ElMessage} from 'element-plus'
 
-// 默认头像
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
 const userStore = useUserStore()
+const route = useRoute()
 const conversations = ref<ConversationItem[]>([])
 const currentConv = ref<ConversationItem | null>(null)
 const messages = ref<MsgItem[]>([])
@@ -29,20 +37,34 @@ const currentPlayingUrl = ref<string>('')
 
 let unsubs: (() => void) | null = null
 
-// --- 补全缺失的状态变量 ---
-const attachmentPreview = ref<{ url: string; file: File; type: 'image' | 'video' } | null>(null)
+type AttachmentItem = { id: string; url: string; file: File; type: 'image' | 'video' | 'file' }
+
+const attachmentPreview = ref<AttachmentItem[]>([])
 const isRecording = ref(false)
 const mediaRecorder = ref<MediaRecorder | null>(null)
 const audioChunks = ref<Blob[]>([])
 const recordTime = ref(0)
 const waveLevels = ref<number[]>(new Array(10).fill(10))
-let recordTimer: any = null
+let recordTimer: ReturnType<typeof setInterval> | null = null
 let audioCtx: AudioContext | null = null
 let analyser: AnalyserNode | null = null
 let dataArray: Uint8Array | null = null
 let animationFrameId: number | null = null
 
-// --- 基础工具 ---
+type ReadReceiptEvent = { type: 'READ_RECEIPT'; conversation_id: number; read_seq: number }
+
+const isReadReceiptEvent = (data: unknown): data is ReadReceiptEvent => {
+  if (!data || typeof data !== 'object') return false
+  const target = data as ReadReceiptEvent
+  return target.type === 'READ_RECEIPT'
+}
+
+const isMsgItem = (data: unknown): data is MsgItem => {
+  if (!data || typeof data !== 'object') return false
+  const target = data as MsgItem
+  return target.msg_type !== undefined
+}
+
 const scrollToBottom = (force = false) => {
   nextTick(() => {
     if (msgListRef.value) {
@@ -66,27 +88,90 @@ const playAudio = (url: string) => {
 
 const openFile = (url: string) => { window.open(url, '_blank') }
 
-// --- 会话列表 ---
+const isNormalMessage = (type: MsgType) => type === MsgType.NORMAL
+
+const getMsgPreview = (msg: MsgItem) => {
+  if (msg.msg_type === MsgType.AUDIO) return '[语音消息]'
+  if (msg.msg_type === MsgType.RECALL) return '[消息撤回]'
+  const payload = msg.payload || []
+  if (payload.some(p => p?.mime_type?.startsWith('image/'))) return '[图片]'
+  if (payload.some(p => p?.mime_type?.startsWith('video/'))) return '[视频]'
+  if (payload.length > 0) return '[文件]'
+  return msg.content || '[消息]'
+}
+
+const getConvById = (id: number) => conversations.value.find(c => c.conversation_id === id)
+
+const ensureTempConversation = (targetUserId: number, title: string, coverUrl: string) => {
+  const existing = conversations.value.find(c => c.peer_id === targetUserId)
+  if (existing) return existing
+  const tempConv: ConversationItem = {
+    conversation_id: 0,
+    type: 1,
+    peer_id: targetUserId,
+    last_msg_content: '',
+    last_msg_type: MsgType.NORMAL,
+    last_sender_id: 0,
+    last_message_at: new Date().toISOString(),
+    unread_count: 0,
+    is_muted: false,
+    is_pinned: false,
+    cover_url: coverUrl,
+    title: title,
+    my_read_seq: 0,
+    peer_read_seq: 0,
+    max_seq: 0
+  }
+  conversations.value = [tempConv, ...conversations.value]
+  return tempConv
+}
+
+const updateLocalReadState = (conversationId: number, seq: number) => {
+  const conv = getConvById(conversationId)
+  if (!conv) return
+  const current = conv.my_read_seq || 0
+  if (seq > current) {
+    conv.my_read_seq = seq
+  }
+  conv.unread_count = 0
+}
+
+const sendReadReceipt = async (conversationId: number, seq: number) => {
+  const conv = getConvById(conversationId)
+  if (!conv) return
+  const current = conv.my_read_seq || 0
+  if (seq <= current) return
+  try {
+    await markMsgReadApi({ conversation_id: conversationId, sequence: seq })
+    updateLocalReadState(conversationId, seq)
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const upsertMessage = (msg: MsgItem) => {
+  const idx = messages.value.findIndex(m => m.id === msg.id || (m.seq && msg.seq && m.seq === msg.seq))
+  if (idx === -1) {
+    messages.value.push(msg)
+  } else {
+    messages.value[idx] = { ...messages.value[idx], ...msg }
+  }
+  messages.value.sort((a, b) => a.seq - b.seq)
+}
+
 const fetchList = async () => {
   try {
     const res: any = await getConversationsApi()
     conversations.value = res.data || []
+    return conversations.value
   } catch (e) { console.error(e) }
+  return []
 }
 
 const updateConversationLastMsg = (msg: MsgItem) => {
   const conv = conversations.value.find(c => c.conversation_id == msg.conversation_id)
   if (conv) {
-    if (msg.msg_type === MsgType.AUDIO) {
-      conv.last_msg_content = '[语音消息]'
-    } else {
-      // 简化预览逻辑
-      if (msg.msg_type === MsgType.IMAGE) conv.last_msg_content = '[图片]'
-      else if (msg.msg_type === MsgType.VIDEO) conv.last_msg_content = '[视频]'
-      else if (msg.msg_type === MsgType.FILE) conv.last_msg_content = '[文件]'
-      else conv.last_msg_content = msg.content || '[消息]'
-    }
-
+    conv.last_msg_content = getMsgPreview(msg)
     conv.last_msg_type = msg.msg_type
     conv.last_message_at = msg.created_at || new Date().toISOString()
 
@@ -99,14 +184,12 @@ const updateConversationLastMsg = (msg: MsgItem) => {
   }
 }
 
-// --- 核心：消息加载逻辑 (纯网络版) ---
-
-// 1. 切换会话
 const selectConv = async (conv: ConversationItem) => {
   if (currentConv.value?.conversation_id === conv.conversation_id) return
   currentConv.value = conv
   messages.value = [] // 清空
   isHistoryFinished.value = false
+  if (conv.conversation_id === 0) return
 
   try {
     // 直接拉取最新的 20 条
@@ -125,8 +208,9 @@ const selectConv = async (conv: ConversationItem) => {
       // 标记已读
       const lastMsg = messages.value[messages.value.length - 1]
       if (lastMsg && lastMsg.sender_id != currentUserId.value) {
-        markMsgReadApi({ conversation_id: conv.conversation_id, sequence: lastMsg.seq })
-        conv.unread_count = 0
+        await sendReadReceipt(conv.conversation_id, lastMsg.seq)
+      } else if (lastMsg) {
+        updateLocalReadState(conv.conversation_id, lastMsg.seq)
       }
     }
   } catch (e) {
@@ -134,7 +218,6 @@ const selectConv = async (conv: ConversationItem) => {
   }
 }
 
-// 2. 加载更多历史
 const loadMoreHistory = async () => {
   if (!currentConv.value || isLoadingHistory.value || isHistoryFinished.value || messages.value.length === 0) return
   isLoadingHistory.value = true
@@ -158,7 +241,7 @@ const loadMoreHistory = async () => {
       const sorted = remoteList.sort((a, b) => a.seq - b.seq)
       messages.value = [...sorted, ...messages.value]
 
-      nextTick(() => {
+      await nextTick(() => {
         if (listEl) listEl.scrollTop = listEl.scrollHeight - oldHeight
       })
     } else {
@@ -176,25 +259,24 @@ const handleScroll = (e: Event) => {
   if (target.scrollTop < 50) loadMoreHistory()
 }
 
-// --- 发送消息逻辑 ---
 const handleSendClick = async () => {
-  if (!inputMsg.value.trim() && !attachmentPreview.value) return
+  if (!inputMsg.value.trim() && attachmentPreview.value.length === 0) return
 
   let payload: MsgPayload[] | null = null
-  let msgType = MsgType.TEXT
+  let msgType = MsgType.NORMAL
 
-  if (attachmentPreview.value) {
-    const { file, type } = attachmentPreview.value
-    msgType = type === 'image' ? MsgType.IMAGE : MsgType.VIDEO // 简单映射
+  if (attachmentPreview.value.length > 0) {
     try {
-      const res: any = await uploadMediaApi(file)
-      payload = [{
-        mime_type: file.type,
-        url: res.data.url,
-        width: res.data.width,
-        height: res.data.height,
-        duration: res.data.duration
-      }]
+      payload = await Promise.all(attachmentPreview.value.map(async (item) => {
+        const res: any = await uploadMediaApi(item.file)
+        return {
+          mime_type: item.file.type,
+          url: res.data.url,
+          width: res.data.width,
+          height: res.data.height,
+          duration: res.data.duration
+        } as MsgPayload
+      }))
       clearAttachment()
     } catch (e) {
       ElMessage.error('上传失败')
@@ -250,47 +332,96 @@ const performSendMessage = async (type: number, content: string, payload: MsgPay
   }
 }
 
-// --- WebSocket ---
 onMounted(() => {
-  fetchList()
+  fetchList().then(() => {
+    handleRouteConv()
+  })
+  imClient.connect()
 
   unsubs = imClient.subscribe((data: any) => {
-    if (data.type === 'READ_RECEIPT') {
-      if (currentConv.value && currentConv.value.conversation_id == data.conversation_id) {
-        currentConv.value.peer_read_seq = data.read_seq
+    if (isReadReceiptEvent(data)) {
+      const conv = getConvById(data.conversation_id)
+      if (conv) {
+        const current = conv.peer_read_seq || 0
+        if (data.read_seq > current) {
+          conv.peer_read_seq = data.read_seq
+        }
       }
       return
     }
 
-    if (data.conversation_id) {
-      updateConversationLastMsg(data)
+    if (!isMsgItem(data)) return
 
-      if (currentConv.value && currentConv.value.conversation_id == data.conversation_id) {
-        // ID 去重
-        const exists = messages.value.some(m => m.id == data.id)
-        if (!exists) {
-          messages.value.push(data)
-          messages.value.sort((a, b) => a.seq - b.seq)
-          scrollToBottom(true)
+    updateConversationLastMsg(data)
 
-          if (data.sender_id != currentUserId.value) {
-            markMsgReadApi({ conversation_id: data.conversation_id, sequence: data.seq })
-          }
-        }
+    if (currentConv.value && currentConv.value.conversation_id == data.conversation_id) {
+      upsertMessage(data)
+      scrollToBottom(true)
+
+      if (data.sender_id != currentUserId.value) {
+        sendReadReceipt(data.conversation_id, data.seq)
       }
     }
   })
 })
 
-onUnmounted(() => { unsubs?.(); clearAttachment(); })
+const handleRouteConv = () => {
+  const convId = Number(route.query.conv_id)
+  const targetUserId = Number(route.query.target_user_id)
+  const title = String(route.query.title || '未知用户')
+  const coverUrl = String(route.query.cover_url || '')
 
-// --- 附件与录音工具函数 ---
+  if (convId) {
+    const conv = conversations.value.find(c => c.conversation_id === convId)
+    if (conv) selectConv(conv)
+    return
+  }
+
+  if (targetUserId) {
+    const conv = ensureTempConversation(targetUserId, title, coverUrl)
+    selectConv(conv)
+  }
+}
+
+watch(() => [route.query.conv_id, route.query.target_user_id], handleRouteConv)
+
+onUnmounted(() => {
+  unsubs?.()
+  clearAttachment()
+  if (isRecording.value) stopRecordingProcess()
+})
+
 const handleFileSelect = (e: Event) => {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  let fileType: 'image' | 'video' = 'image'
-  if (file.type.startsWith('video/')) fileType = 'video'
-  attachmentPreview.value = { url: URL.createObjectURL(file), file: file, type: fileType }
+  const target = e.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  if (files.length === 0) return
+  const items = files.map((file) => {
+    let fileType: AttachmentItem['type'] = 'file'
+    if (file.type.startsWith('image/')) fileType = 'image'
+    else if (file.type.startsWith('video/')) fileType = 'video'
+    return {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      url: URL.createObjectURL(file),
+      file,
+      type: fileType
+    }
+  })
+  attachmentPreview.value = [...attachmentPreview.value, ...items]
+  target.value = ''
+}
+
+const clearAttachment = () => {
+  attachmentPreview.value.forEach(item => URL.revokeObjectURL(item.url))
+  attachmentPreview.value = []
+}
+
+const removeAttachment = (id: string) => {
+  const idx = attachmentPreview.value.findIndex(item => item.id === id)
+  if (idx === -1) return
+  const target = attachmentPreview.value[idx]
+  if (!target) return
+  URL.revokeObjectURL(target.url)
+  attachmentPreview.value.splice(idx, 1)
 }
 
 const toggleRecord = async () => {
@@ -319,7 +450,7 @@ const startRecordingProcess = async () => {
     mediaRecorder.value.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.value.push(e.data) }
     mediaRecorder.value.onstop = async () => {
       stream.getTracks().forEach(t => t.stop())
-      if (audioCtx) audioCtx.close()
+      if (audioCtx) await audioCtx.close()
       if (animationFrameId) cancelAnimationFrame(animationFrameId)
       if (audioChunks.value.length === 0) return
       const audioBlob = new Blob(audioChunks.value, { type: mimeType })
@@ -344,7 +475,18 @@ const stopRecordingProcess = () => {
   if (mediaRecorder.value && isRecording.value) {
     mediaRecorder.value.stop()
     isRecording.value = false
-    clearInterval(recordTimer)
+    if (recordTimer) {
+      clearInterval(recordTimer)
+      recordTimer = null
+    }
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId)
+      animationFrameId = null
+    }
+    if (audioCtx) {
+      audioCtx.close()
+      audioCtx = null
+    }
   }
 }
 
@@ -396,7 +538,7 @@ const updateWaveform = () => {
               <div class="bubble-wrapper">
                 <div class="bubble-box" :class="{ 'sending': m.status === 'sending', 'fail': m.status === 'fail' }">
 
-                  <template v-if="[MsgType.TEXT, MsgType.IMAGE, MsgType.VIDEO, MsgType.FILE].includes(m.msg_type)">
+                  <template v-if="isNormalMessage(m.msg_type)">
                     <div v-if="m.content" class="text-node">{{ m.content }}</div>
                     <template v-if="m.payload && m.payload.length > 0">
                       <div v-for="(p, idx) in m.payload" :key="idx" class="payload-content" :class="{ 'has-text': !!m.content }">
@@ -458,11 +600,12 @@ const updateWaveform = () => {
           </div>
 
           <div class="input-section">
-            <div v-if="attachmentPreview" class="attachment-preview-bar">
-              <div class="preview-item">
-                <img v-if="attachmentPreview.type === 'image'" :src="attachmentPreview.url" alt="预览" />
+            <div v-if="attachmentPreview.length > 0" class="attachment-preview-bar">
+              <div v-for="item in attachmentPreview" :key="item.id" class="preview-item">
+                <img v-if="item.type === 'image'" :src="item.url" alt="预览" />
+                <video v-else-if="item.type === 'video'" :src="item.url"></video>
                 <div v-else class="file-placeholder"><svg viewBox="0 0 24 24" width="24"><path fill="#666" d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg></div>
-                <div class="remove-preview" @click="clearAttachment">×</div>
+                <div class="remove-preview" @click="removeAttachment(item.id)">×</div>
               </div>
             </div>
 
@@ -491,11 +634,11 @@ const updateWaveform = () => {
               <div class="input-actions">
                 <div class="tool-icon-wrapper" :class="{ 'disabled': isRecording }">
                   <label class="tool-icon" title="附件">
-                    <input type="file" @change="handleFileSelect" hidden :disabled="isRecording"/>
+                    <input type="file" multiple @change="handleFileSelect" hidden :disabled="isRecording"/>
                     <svg viewBox="0 0 24 24" width="28"><path fill="currentColor" d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5V6H9v9.5c0 2.21 1.79 4 4 4s4-1.79 4-4V5c0-2.48-2.02-4.5-4.5-4.5S8 2.52 8 5v12.5c0 3.59 2.91 6.5 6.5 6.5s6.5-2.91 6.5-6.5V6h-1.5z"/></svg>
                   </label>
                 </div>
-                <button class="send-btn" @click="handleSendClick" :disabled="(!inputMsg.trim() && !attachmentPreview) || isRecording">发送</button>
+                <button class="send-btn" @click="handleSendClick" :disabled="(!inputMsg.trim() && attachmentPreview.length === 0) || isRecording">发送</button>
               </div>
             </div>
           </div>
@@ -617,9 +760,10 @@ const updateWaveform = () => {
 .send-btn { background: #00aeec; color: #fff; border: none; padding: 0 24px; height: 44px; border-radius: 14px; font-weight: 800; cursor: pointer; }
 .send-btn:disabled { background: #e3e5e7; color: #9499a0; cursor: not-allowed; }
 
-.attachment-preview-bar { padding: 12px 0; border-top: 1px solid #f0f2f5; margin-bottom: 8px; }
+.attachment-preview-bar { padding: 12px 0; border-top: 1px solid #f0f2f5; margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 10px; }
 .preview-item { position: relative; width: 64px; height: 64px; border-radius: 12px; overflow: hidden; border: 1px solid #eee; }
 .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+.preview-item video { width: 100%; height: 100%; object-fit: cover; }
 .remove-preview { position: absolute; top: 0; right: 0; background: rgba(0,0,0,0.6); color: #fff; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; border-bottom-left-radius: 8px; }
 
 .full-media-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); backdrop-filter: blur(15px); z-index: 1000; display: flex; align-items: center; justify-content: center; cursor: pointer; }
