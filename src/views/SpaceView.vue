@@ -4,14 +4,17 @@ import {useRoute, useRouter} from 'vue-router'
 import {ElMessage} from 'element-plus'
 import {useUserStore} from '../stores/user'
 import PostGrid from '../components/PostGrid.vue'
-import PostDetail from '../components/PostDetail.vue' // [关键]: 引入弹窗组件
-import {getUserHomeApi, type UserHomeInfo} from '../api/user'
+import PostDetail from '../components/PostDetail.vue'
+import UserGrid from '../components/UserGrid.vue'
+import {getUserHomeApi, batchGetUserSimpleApi, type UserHomeInfo} from '../api/user'
 import {
   checkIsFollowApi,
   followUserApi,
   unfollowUserApi,
   getFollowersCountApi,
-  getFollowingsCountApi
+  getFollowingsCountApi,
+  getFollowersApi,
+  getFollowingsApi
 } from '../api/relation'
 import {getUserPostsApi, getMyPostsApi, type PostItem} from '../api/post'
 import {getLikedPostsApi, getCollectedPostsApi} from '../api/post-action'
@@ -20,24 +23,29 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-// --- 状态 ---
+// --- 基础状态 ---
 const loadingProfile = ref(true)
-const loadingPosts = ref(false)
+const loadingContent = ref(false)
 const userInfo = ref<UserHomeInfo | null>(null)
 const isFollowing = ref(false)
-const posts = ref<PostItem[]>([])
 
-// [关键]: 控制详情弹窗显示的变量，保持 MainLayout 形式
+// 数据源
+const posts = ref<PostItem[]>([])
+const relationUsers = ref<UserHomeInfo[]>([])
+
+// --- 弹窗控制 ---
 const showPostDetail = ref(false)
 const selectedPostId = ref<number | null>(null)
 
-// 统计数据
 const stats = ref({
   following: 0,
   followers: 0
 })
 
-const activeTab = ref('works') // 'works' | 'likes' | 'collects'
+// [核心状态]: 记录当前激活的标签
+// 模式 A (作品视图): works, likes, collects
+// 模式 B (关系视图): following, followers
+const activeTab = ref('works')
 
 // --- 计算属性 ---
 const currentUserId = computed(() => {
@@ -49,6 +57,9 @@ const isMe = computed(() => {
   return userStore.isLoggedIn && userStore.userInfo?.user_id === currentUserId.value
 })
 
+// 判断当前是否处于关系查看模式
+const isRelationView = computed(() => ['following', 'followers'].includes(activeTab.value))
+
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
 // --- 数据获取 ---
@@ -56,7 +67,6 @@ const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726
 const fetchProfileData = async () => {
   const id = currentUserId.value
   if (!id) return
-
   loadingProfile.value = true
   try {
     const [userRes, followingRes, followerRes] = await Promise.all([
@@ -64,15 +74,9 @@ const fetchProfileData = async () => {
       getFollowingsCountApi(id),
       getFollowersCountApi(id)
     ])
-
     userInfo.value = (userRes as any).data
-
-    const followingData = (followingRes as any).data || followingRes
-    const followerData = (followerRes as any).data || followerRes
-
-    stats.value.following = followingData?.count || 0
-    stats.value.followers = followerData?.count || 0
-
+    stats.value.following = (followingRes as any).data?.count || 0
+    stats.value.followers = (followerRes as any).data?.count || 0
     if (!isMe.value && userStore.isLoggedIn) {
       try {
         const followRes: any = await checkIsFollowApi(id)
@@ -81,53 +85,71 @@ const fetchProfileData = async () => {
       }
     }
   } catch (error) {
-    console.error(error)
     ElMessage.error('获取用户信息失败')
   } finally {
     loadingProfile.value = false
   }
 }
 
-const fetchPosts = async () => {
+const fetchTabContent = async () => {
   const id = currentUserId.value
   if (!id) return
+  loadingContent.value = true
 
-  loadingPosts.value = true
+  posts.value = []
+  relationUsers.value = []
+
   try {
     let res: any
-
+    // 加载帖子类数据
     if (activeTab.value === 'works') {
-      if (isMe.value) {
-        // 如果是本人，请求 /posts/self 包含审核中内容
-        res = await getMyPostsApi()
-      } else {
-        res = await getUserPostsApi(id, {page: 1, page_size: 50})
-      }
+      res = isMe.value ? await getMyPostsApi() : await getUserPostsApi(id, {page: 1, page_size: 50})
     } else if (activeTab.value === 'likes') {
       res = await getLikedPostsApi(id)
     } else if (activeTab.value === 'collects') {
       res = await getCollectedPostsApi(id)
     }
 
+    // 加载关系类用户数据
+    else if (activeTab.value === 'following' || activeTab.value === 'followers') {
+      const relationRes: any = activeTab.value === 'following'
+          ? await getFollowingsApi({page: 1, page_size: 100})
+          : await getFollowersApi({page: 1, page_size: 100})
+
+      const relations = relationRes.data || []
+      if (relations.length > 0) {
+        const targetIds = relations.map((item: any) =>
+            activeTab.value === 'following' ? item.followingId : item.followerId
+        )
+        const userRes: any = await batchGetUserSimpleApi(targetIds)
+        relationUsers.value = userRes.data || []
+      }
+      loadingContent.value = false
+      return
+    }
+
     const responseData = res.data || res
     posts.value = responseData?.list || responseData || []
   } catch (error) {
-    console.error('获取帖子失败:', error)
-    ElMessage.error('获取列表失败')
+    console.error('加载失败', error)
   } finally {
-    loadingPosts.value = false
+    loadingContent.value = false
   }
 }
 
 // --- 交互逻辑 ---
 
+const handleStatClick = (type: 'following' | 'followers') => {
+  if (!isMe.value) return
+  activeTab.value = type
+  fetchTabContent()
+}
+
 const handleFollow = async () => {
   if (!userStore.isLoggedIn) return ElMessage.warning('请先登录')
   if (!userInfo.value) return
-
   const originalState = isFollowing.value
   isFollowing.value = !originalState
-
   try {
     if (originalState) {
       await unfollowUserApi(userInfo.value.user_id)
@@ -142,52 +164,44 @@ const handleFollow = async () => {
   }
 }
 
-const handleEditProfile = () => {
-  router.push('/settings/profile')
+const handlePostClick = (postId: number) => {
+  selectedPostId.value = postId
+  showPostDetail.value = true
 }
 
 const handleTabChange = (tab: string) => {
   activeTab.value = tab
-  fetchPosts()
-}
-
-// [修复]: 绑定到 PostGrid 的点击事件，使用弹窗展示详情以保留 Sidebar
-const handlePostClick = (postId: number) => {
-  selectedPostId.value = postId
-  showPostDetail.value = true
+  fetchTabContent()
 }
 
 watch(() => route.query.id, (newId) => {
   if (newId) {
     activeTab.value = 'works'
     fetchProfileData()
-    fetchPosts()
+    fetchTabContent()
   }
 })
 
 onMounted(() => {
   if (!currentUserId.value) {
-    router.replace('/login')
+    router.replace('/')
     return
   }
   fetchProfileData()
-  fetchPosts()
+  fetchTabContent()
 })
 </script>
 
 <template>
   <div class="space-view">
-
     <div v-if="loadingProfile" class="loading-container">
       <div class="spinner"></div>
     </div>
 
     <div v-else-if="userInfo" class="space-container">
-
       <div class="profile-header-card">
         <div class="header-left">
           <img :src="userInfo.avatar_url || defaultAvatar" class="avatar-img" alt="avatar"/>
-
           <div class="info-group">
             <div class="name-line">
               <h1 class="nickname">{{ userInfo.nickname }}</h1>
@@ -195,7 +209,6 @@ onMounted(() => {
                 {{ userInfo.gender === 1 ? '♂' : '♀' }}
               </span>
             </div>
-
             <div class="uid-line">
               <span class="uid-text">UID: {{ userInfo.user_id }}</span>
               <span class="region-text" v-if="userInfo.region">
@@ -206,19 +219,13 @@ onMounted(() => {
                 {{ userInfo.region }}
               </span>
             </div>
-
             <p class="bio-text">{{ userInfo.bio || '这个人很神秘，什么都没写' }}</p>
-
             <div class="action-line">
               <template v-if="isMe">
-                <button class="action-btn edit-btn" @click="handleEditProfile">编辑资料</button>
+                <button class="action-btn edit-btn" @click="router.push('/settings/profile')">编辑资料</button>
               </template>
               <template v-else>
-                <button
-                    class="action-btn follow-btn"
-                    :class="{ 'is-following': isFollowing }"
-                    @click="handleFollow"
-                >
+                <button class="action-btn follow-btn" :class="{ 'is-following': isFollowing }" @click="handleFollow">
                   <span v-if="isFollowing">已关注</span>
                   <span v-else>+ 关注</span>
                 </button>
@@ -229,12 +236,12 @@ onMounted(() => {
         </div>
 
         <div class="header-right">
-          <div class="stat-box">
+          <div class="stat-box" :class="{ 'clickable': isMe }" @click="handleStatClick('following')">
             <div class="stat-num">{{ stats.following }}</div>
             <div class="stat-label">关注</div>
           </div>
           <div class="divider-v"></div>
-          <div class="stat-box">
+          <div class="stat-box" :class="{ 'clickable': isMe }" @click="handleStatClick('followers')">
             <div class="stat-num">{{ stats.followers }}</div>
             <div class="stat-label">粉丝</div>
           </div>
@@ -243,52 +250,55 @@ onMounted(() => {
 
       <div class="content-section">
         <div class="tabs-header">
-          <div
-              class="tab-item"
-              :class="{ active: activeTab === 'works' }"
-              @click="handleTabChange('works')"
-          >动态
-          </div>
-          <div
-              class="tab-item"
-              :class="{ active: activeTab === 'likes' }"
-              @click="handleTabChange('likes')"
-          >喜欢
-          </div>
-          <div
-              class="tab-item"
-              :class="{ active: activeTab === 'collects' }"
-              @click="handleTabChange('collects')"
-          >收藏
-          </div>
+          <transition name="slide-fade">
+            <div v-if="isRelationView" class="back-pill" @click="handleTabChange('works')">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+              </svg>
+              <span>返回动态</span>
+            </div>
+          </transition>
+
+          <template v-if="isRelationView">
+            <div class="tab-item" :class="{ active: activeTab === 'following' }" @click="handleTabChange('following')">
+              关注
+            </div>
+            <div class="tab-item" :class="{ active: activeTab === 'followers' }" @click="handleTabChange('followers')">
+              粉丝
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="tab-item" :class="{ active: activeTab === 'works' }" @click="handleTabChange('works')">动态
+            </div>
+            <div class="tab-item" :class="{ active: activeTab === 'likes' }" @click="handleTabChange('likes')">喜欢
+            </div>
+            <div class="tab-item" :class="{ active: activeTab === 'collects' }" @click="handleTabChange('collects')">
+              收藏
+            </div>
+          </template>
         </div>
 
-        <div class="posts-wrapper">
-          <div v-if="loadingPosts" class="loading-state">
+        <div class="main-content-wrapper">
+          <div v-if="loadingContent" class="loading-state">
             <div class="spinner"></div>
           </div>
 
-          <div v-else-if="posts.length > 0">
-            <PostGrid :posts="posts" :loading="false" @post-click="handlePostClick"/>
-          </div>
-
-          <div v-else class="empty-state">
-            <div class="empty-icon">
-              <svg viewBox="0 0 24 24" width="60" height="60">
-                <path fill="#E3E5E7"
-                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z"/>
-              </svg>
+          <template v-else>
+            <div v-if="isRelationView">
+              <UserGrid :users="relationUsers" :loading="false"/>
+              <div v-if="relationUsers.length === 0" class="empty-state">暂无相关用户</div>
             </div>
-            <p>暂无相关内容</p>
-          </div>
+            <div v-else>
+              <PostGrid :posts="posts" :loading="false" @post-click="handlePostClick"/>
+              <div v-if="posts.length === 0" class="empty-state">暂无相关内容</div>
+            </div>
+          </template>
         </div>
       </div>
     </div>
 
-    <PostDetail
-        v-model="showPostDetail"
-        :postId="selectedPostId"
-    />
+    <PostDetail v-model="showPostDetail" :postId="selectedPostId"/>
   </div>
 </template>
 
@@ -306,9 +316,10 @@ onMounted(() => {
   padding-top: 100px;
 }
 
+/* 头部卡片风格同步 */
 .profile-header-card {
   background: #fff;
-  border-radius: 16px;
+  border-radius: 24px;
   padding: 40px;
   display: flex;
   justify-content: space-between;
@@ -383,6 +394,7 @@ onMounted(() => {
   max-width: 500px;
 }
 
+/* 按钮样式 */
 .action-line {
   display: flex;
   gap: 12px;
@@ -407,10 +419,6 @@ onMounted(() => {
   color: #fff;
 }
 
-.follow-btn:hover {
-  background: #009CD6;
-}
-
 .follow-btn.is-following {
   background: #E3E5E7;
   color: #9499A0;
@@ -422,11 +430,7 @@ onMounted(() => {
   color: #61666D;
 }
 
-.chat-btn:hover, .edit-btn:hover {
-  border-color: #00AEEC;
-  color: #00AEEC;
-}
-
+/* 头部数据统计 */
 .header-right {
   display: flex;
   align-items: center;
@@ -439,6 +443,21 @@ onMounted(() => {
   align-items: center;
   padding: 0 24px;
   min-width: 60px;
+  transition: all 0.2s;
+}
+
+.stat-box.clickable {
+  cursor: pointer;
+  border-radius: 12px;
+  padding: 8px 24px;
+}
+
+.stat-box.clickable:hover {
+  background-color: #F4F6F8;
+}
+
+.stat-box.clickable:hover .stat-num {
+  color: #00AEEC;
 }
 
 .stat-num {
@@ -459,21 +478,46 @@ onMounted(() => {
   background: #E3E5E7;
 }
 
+/* 内容区块 */
 .content-section {
   background: #fff;
-  border-radius: 16px;
-  min-height: 500px;
+  border-radius: 24px;
+  min-height: 600px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
 }
 
+/* 标签栏 & 返回按钮样式 */
 .tabs-header {
   display: flex;
+  align-items: center;
   border-bottom: 1px solid #F0F2F5;
   padding: 0 32px;
+  height: 60px;
+}
+
+.back-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #F4F6F8;
+  color: #61666D;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 20px;
+  transition: all 0.2s;
+}
+
+.back-pill:hover {
+  background: #E3E5E7;
+  color: #18191C;
 }
 
 .tab-item {
-  padding: 16px 0;
+  padding: 18px 0;
   margin-right: 40px;
   font-size: 16px;
   color: #61666D;
@@ -489,7 +533,7 @@ onMounted(() => {
 
 .tab-item.active {
   color: #00AEEC;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .tab-item.active::after {
@@ -504,26 +548,15 @@ onMounted(() => {
   border-radius: 2px;
 }
 
-.posts-wrapper {
-  padding: 24px;
-}
-
-.loading-state {
-  display: flex;
-  justify-content: center;
-  padding: 60px 0;
+.main-content-wrapper {
+  padding: 24px 32px;
 }
 
 .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 80px 0;
+  text-align: center;
   color: #9499A0;
-}
-
-.empty-icon svg {
-  margin-bottom: 12px;
+  padding: 100px 0;
+  font-size: 14px;
 }
 
 .spinner {
@@ -533,6 +566,21 @@ onMounted(() => {
   border-top: 4px solid #00AEEC;
   border-radius: 50%;
   animation: spin 1s linear infinite;
+  margin: 60px auto;
+}
+
+/* 动画 */
+.slide-fade-enter-active {
+  transition: all 0.3s ease-out;
+}
+
+.slide-fade-leave-active {
+  transition: all 0.2s cubic-bezier(1, 0.5, 0.8, 1);
+}
+
+.slide-fade-enter-from, .slide-fade-leave-to {
+  transform: translateX(-10px);
+  opacity: 0;
 }
 
 @keyframes spin {

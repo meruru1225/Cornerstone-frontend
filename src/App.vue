@@ -1,31 +1,38 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { useUserStore } from './stores/user'
+import {onMounted, watch} from 'vue'
+import {useUserStore} from './stores/user'
+import {imClient} from './api/im'
 
 const userStore = useUserStore()
 
-onMounted(async () => {
-  // 应用启动时尝试恢复登录状态
-  await userStore.fetchUserInfo()
+const startIM = () => {
   if (userStore.isLoggedIn) {
-    await userStore.fetchUserRoles()
+    imClient.connect()
   }
+}
+
+onMounted(async () => {
+  await userStore.fetchUserInfo()
+  startIM()
+})
+
+// 登录状态变化时重新连接
+watch(() => userStore.isLoggedIn, (val) => {
+  if (val) startIM()
 })
 </script>
 
 <template>
-  <router-view />
+  <router-view/>
 </template>
 
 <style>
+/* 核心：禁止全局滚动 */
 html, body, #app {
-  margin: 0;
-  padding: 0;
   height: 100%;
   width: 100%;
-}
-
-body {
+  margin: 0;
+  padding: 0;
   overflow: hidden;
 }
 </style>
