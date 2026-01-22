@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import {onMounted, computed, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
-import {storeToRefs} from 'pinia' // [新增]
+import {storeToRefs} from 'pinia'
 import {useUserStore} from '../stores/user'
 import {useSysboxStore} from '../stores/sysbox'
+import {useImStore} from '../stores/im'
 import {ElMessageBox, ElMessage} from 'element-plus'
 
 const emit = defineEmits(['trigger-auth'])
@@ -11,8 +12,10 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const sysboxStore = useSysboxStore()
+const imStore = useImStore()
 
-const {unreadCount} = storeToRefs(sysboxStore)
+const {unreadCount: sysboxUnreadCount} = storeToRefs(sysboxStore)
+const {unreadCount: imUnreadCount} = storeToRefs(imStore)
 
 const currentUser = computed(() => (userStore.userInfo as any) || {})
 
@@ -131,11 +134,11 @@ onMounted(() => {
         </svg>
         <span class="menu-name">{{ item.name }}</span>
 
-        <span
-            v-if="item.showBadge && unreadCount > 0"
-            class="unread-badge"
-        >
-          {{ unreadCount > 99 ? '99+' : unreadCount }}
+        <span v-if="item.key === 'notify' && sysboxUnreadCount > 0" class="unread-badge">
+          {{ sysboxUnreadCount > 99 ? '99+' : sysboxUnreadCount }}
+        </span>
+        <span v-else-if="item.key === 'chat' && imUnreadCount > 0" class="unread-badge">
+          {{ imUnreadCount > 99 ? '99+' : imUnreadCount }}
         </span>
       </div>
     </nav>

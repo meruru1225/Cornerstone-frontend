@@ -14,11 +14,13 @@ import {
 } from '../api/im'
 import {uploadMediaApi} from '../api/media'
 import {useUserStore} from '../stores/user'
+import {useImStore} from '../stores/im'
 import {ElMessage} from 'element-plus'
 
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
 const userStore = useUserStore()
+const imStore = useImStore()
 const route = useRoute()
 const conversations = ref<ConversationItem[]>([])
 const currentConv = ref<ConversationItem | null>(null)
@@ -134,6 +136,7 @@ const updateLocalReadState = (conversationId: number, seq: number) => {
     conv.my_read_seq = seq
   }
   conv.unread_count = 0
+  imStore.resetFromConversations(conversations.value)
 }
 
 const sendReadReceipt = async (conversationId: number, seq: number) => {
@@ -163,6 +166,7 @@ const fetchList = async () => {
   try {
     const res: any = await getConversationsApi()
     conversations.value = res.data || []
+    imStore.resetFromConversations(conversations.value)
     return conversations.value
   } catch (e) { console.error(e) }
   return []
@@ -175,7 +179,8 @@ const updateConversationLastMsg = (msg: MsgItem) => {
     conv.last_msg_type = msg.msg_type
     conv.last_message_at = msg.created_at || new Date().toISOString()
 
-    if (currentConv.value?.conversation_id != msg.conversation_id) {
+    const isFromSelf = msg.sender_id === currentUserId.value
+    if (currentConv.value?.conversation_id != msg.conversation_id && !isFromSelf) {
       conv.unread_count = (conv.unread_count || 0) + 1
     }
     conversations.value.sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
@@ -187,6 +192,7 @@ const updateConversationLastMsg = (msg: MsgItem) => {
 const selectConv = async (conv: ConversationItem) => {
   if (currentConv.value?.conversation_id === conv.conversation_id) return
   currentConv.value = conv
+  imStore.setCurrentConvId(conv.conversation_id)
   messages.value = [] // 清空
   isHistoryFinished.value = false
   if (conv.conversation_id === 0) return
@@ -387,6 +393,7 @@ watch(() => [route.query.conv_id, route.query.target_user_id], handleRouteConv)
 
 onUnmounted(() => {
   unsubs?.()
+  imStore.setCurrentConvId(0)
   clearAttachment()
   if (isRecording.value) stopRecordingProcess()
 })
