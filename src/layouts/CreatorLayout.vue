@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeMount } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 
@@ -54,7 +54,15 @@ const handleNavigate = (item: typeof menuItems[number]) => {
   router.push(item.path)
 }
 
-onBeforeMount(() => {
+const waitForUserState = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+onMounted(async () => {
+  if (!userStore.isLoggedIn || !userStore.userInfo) {
+    await waitForUserState(500)
+  }
+  if (!userStore.isLoggedIn || !userStore.userInfo) {
+    await userStore.fetchUserInfo()
+  }
   if (!userStore.isLoggedIn || !userStore.userInfo) {
     router.replace('/')
   }

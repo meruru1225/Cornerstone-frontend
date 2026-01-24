@@ -64,6 +64,10 @@ const isActive = (path: string) => {
 }
 
 const handleNavigate = (path: string) => {
+  if (path === '/creator' && !userStore.userInfo) {
+    ElMessage.warning('请先登录后再进入发布中心')
+    return
+  }
   router.push(path)
 }
 

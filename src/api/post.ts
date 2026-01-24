@@ -177,6 +177,13 @@ export function getMyPostsApi() {
   })
 }
 
+export function getMyPostsCountApi() {
+  return request({
+    url: '/posts/count/me',
+    method: 'get'
+  })
+}
+
 /**
  * 获取某个标签的帖子
  * @param params 查询参数

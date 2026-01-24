@@ -9,9 +9,11 @@ const props = withDefaults(defineProps<{
   deltaTitle: string
   totalValueLabel: string
   deltaValueLabel: string
+  showDelta?: boolean
   emptyText?: string
 }>(), {
-  emptyText: '暂无数据'
+  emptyText: '暂无数据',
+  showDelta: true
 })
 
 const totalPanelRef = ref<HTMLDivElement | null>(null)
@@ -155,6 +157,7 @@ const clearHover = (type: 'total' | 'delta') => {
 }
 
 const updateScrollLeft = (type: 'total' | 'delta') => {
+  if (type === 'delta' && !props.showDelta) return
   if (type === 'total') {
     totalScrollLeft.value = totalPanelRef.value?.scrollLeft ?? 0
   } else {
@@ -186,7 +189,7 @@ const getTooltipStyle = (type: 'total' | 'delta') => {
 
 const updateContainerWidth = () => {
   const totalWidth = totalPanelRef.value?.clientWidth ?? 0
-  const deltaWidth = deltaPanelRef.value?.clientWidth ?? 0
+  const deltaWidth = props.showDelta ? (deltaPanelRef.value?.clientWidth ?? 0) : 0
   chartContainerWidth.value = Math.max(totalWidth, deltaWidth)
 }
 
@@ -195,7 +198,7 @@ const observePanels = () => {
   if (!resizeObserver) return
   resizeObserver.disconnect()
   if (totalPanelRef.value) resizeObserver.observe(totalPanelRef.value)
-  if (deltaPanelRef.value) resizeObserver.observe(deltaPanelRef.value)
+  if (props.showDelta && deltaPanelRef.value) resizeObserver.observe(deltaPanelRef.value)
 }
 
 onMounted(() => {
@@ -210,7 +213,7 @@ onMounted(() => {
   }
 })
 
-watch([totalPanelRef, deltaPanelRef, () => currentData.value.length, () => props.loading], async () => {
+watch([totalPanelRef, deltaPanelRef, () => currentData.value.length, () => props.loading, () => props.showDelta], async () => {
   await nextTick()
   updateContainerWidth()
   updateScrollLeft('total')
@@ -303,7 +306,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" v-if="props.showDelta">
       <div class="card-title">{{ deltaTitle }}</div>
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
