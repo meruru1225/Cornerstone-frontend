@@ -42,30 +42,32 @@ const hoverInfo = ref<{
 const currentData = computed(() => props.data || [])
 const totalSeries = computed(() => currentData.value.map(item => item.value))
 const deltaSeries = computed(() => currentData.value.map((item, index) => {
-  if (index === 0) return Math.max(0, item.value)
+  if (index === 0) return item.value
   const prev = currentData.value[index - 1]?.value ?? 0
-  return Math.max(0, item.value - prev)
+  return item.value - prev
 }))
 
-const buildBounds = (values: number[]) => {
+const buildBounds = (values: number[], allowNegative = false) => {
   if (values.length === 0) {
     return { min: 0, max: 1 }
   }
   const rawMin = Math.min(...values)
   const rawMax = Math.max(...values)
-  const baseMin = Math.min(rawMin, 0)
+  const baseMin = allowNegative ? rawMin : Math.min(rawMin, 0)
   const baseMax = Math.max(rawMax, 0)
   const range = baseMax - baseMin
   if (range === 0) {
     const padding = Math.max(1, Math.abs(baseMax) * 0.2)
-    return { min: Math.max(0, baseMin - padding), max: baseMax + padding }
+    const minValue = baseMin - padding
+    return { min: allowNegative ? minValue : Math.max(0, minValue), max: baseMax + padding }
   }
   const padding = range * 0.1
-  return { min: Math.max(0, baseMin - padding), max: baseMax + padding }
+  const minValue = baseMin - padding
+  return { min: allowNegative ? minValue : Math.max(0, minValue), max: baseMax + padding }
 }
 
-const totalBounds = computed(() => buildBounds(totalSeries.value))
-const deltaBounds = computed(() => buildBounds(deltaSeries.value))
+const totalBounds = computed(() => buildBounds(totalSeries.value, false))
+const deltaBounds = computed(() => buildBounds(deltaSeries.value, true))
 const totalMinValue = computed(() => totalBounds.value.min)
 const totalMaxValue = computed(() => totalBounds.value.max)
 const deltaMinValue = computed(() => deltaBounds.value.min)
