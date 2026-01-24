@@ -125,6 +125,14 @@ export function searchPostsApi(keyword: string) {
   })
 }
 
+export function searchMyPostsApi(keyword: string) {
+  return request({
+    url: '/posts/search/me',
+    method: 'get',
+    params: { keyword }
+  })
+}
+
 export function getLatestPostsApi() {
   return request({
     url: '/posts/lastest',

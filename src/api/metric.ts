@@ -34,7 +34,7 @@ export interface PostMetricData {
  */
 export function getUserMetric7d() {
   return request({
-    url: '/metric/user/7d',
+    url: '/metrics/user/7d',
     method: 'get'
   })
 }
@@ -44,7 +44,7 @@ export function getUserMetric7d() {
  */
 export function getUserMetric30d() {
   return request({
-    url: '/metric/user/30d',
+    url: '/metrics/user/30d',
     method: 'get'
   })
 }
@@ -54,7 +54,7 @@ export function getUserMetric30d() {
  */
 export function getUserContentMetric7d() {
   return request({
-    url: '/metric/user-content/7d',
+    url: '/metrics/user-content/7d',
     method: 'get'
   })
 }
@@ -64,7 +64,7 @@ export function getUserContentMetric7d() {
  */
 export function getUserContentMetric30d() {
   return request({
-    url: '/metric/user-content/30d',
+    url: '/metrics/user-content/30d',
     method: 'get'
   })
 }
@@ -75,7 +75,7 @@ export function getUserContentMetric30d() {
  */
 export function getPostMetric7d(postId: number | string) {
   return request({
-    url: `/metric/post/7d/${postId}`,
+    url: `/metrics/post/7d/${postId}`,
     method: 'get'
   })
 }
@@ -86,7 +86,7 @@ export function getPostMetric7d(postId: number | string) {
  */
 export function getPostMetric30d(postId: number | string) {
   return request({
-    url: `/metric/post/30d/${postId}`,
+    url: `/metrics/post/30d/${postId}`,
     method: 'get'
   })
 }

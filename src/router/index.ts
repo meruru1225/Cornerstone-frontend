@@ -74,6 +74,52 @@ const router = createRouter({
             component: () => import('../layouts/AdminLayout.vue')
         },
         {
+            path: '/creator',
+            component: () => import('../layouts/CreatorLayout.vue'),
+            children: [
+                {
+                    path: '',
+                    name: 'creator-home',
+                    component: () => import('../views/CreatorHomeView.vue'),
+                    meta: { title: '创作首页' }
+                },
+                {
+                    path: 'publish',
+                    name: 'creator-publish',
+                    component: () => import('../views/CreatorPublishView.vue'),
+                    meta: { title: '发布帖子' }
+                },
+                {
+                    path: 'dashboard',
+                    redirect: '/creator/dashboard/fans'
+                },
+                {
+                    path: 'dashboard/fans',
+                    name: 'creator-dashboard-fans',
+                    component: () => import('../views/CreatorFansDashboard.vue'),
+                    meta: { title: '粉丝数据' }
+                },
+                {
+                    path: 'dashboard/content',
+                    name: 'creator-dashboard-content',
+                    component: () => import('../views/CreatorContentDashboard.vue'),
+                    meta: { title: '内容数据' }
+                },
+                {
+                    path: 'dashboard/posts',
+                    name: 'creator-dashboard-posts',
+                    component: () => import('../views/CreatorPostDashboard.vue'),
+                    meta: { title: '帖子数据' }
+                },
+                {
+                    path: 'manage',
+                    name: 'creator-manage',
+                    component: () => import('../views/CreatorPostManageView.vue'),
+                    meta: { title: '帖子管理' }
+                }
+            ]
+        },
+        {
             path: '/post',
             component: BlankLayout,
             children: [

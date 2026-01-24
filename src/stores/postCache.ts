@@ -6,7 +6,9 @@ export const usePostCacheStore = defineStore('post-cache', () => {
     const detailCache = new Map<number, Promise<any>>()
     const commentsCache = new Map<number, Promise<any>>()
 
-    const prefetch = (postId: number) => {
+    const prefetch = (postId: number | null | undefined) => {
+        if (postId === null || postId === undefined) return
+        if (!Number.isFinite(postId)) return
         const idStr = postId.toString()
 
         if (!detailCache.has(postId)) {

@@ -142,10 +142,14 @@ export function collectPostApi(postId: number | string, action: ActionType) {
  * 获取帖子各项互动数据并上报浏览
  * @param postId 帖子ID
  */
-export function getPostActionStateApi(postId: number | string) {
+export function getPostActionStateApi(postId: number | string, needTrack: boolean = true) {
   return request({
-    url: `/post/action/state/${postId}`,
-    method: 'get'
+    url: '/post/action/state',
+    method: 'get',
+    params: {
+      post_id: postId,
+      need_track: needTrack
+    }
   })
 }
 
