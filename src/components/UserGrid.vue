@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import UserLine from './UserLine.vue'
+import UserCard from './UserCard.vue'
 import type { UserHomeInfo } from '../api/user'
 
 defineProps<{
@@ -15,7 +15,7 @@ defineProps<{
     </div>
 
     <div v-else class="user-list">
-      <UserLine
+      <UserCard
           v-for="user in users"
           :key="user.user_id"
           :user="user"

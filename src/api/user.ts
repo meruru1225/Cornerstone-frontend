@@ -65,6 +65,40 @@ export interface UserRoleParams {
   role_id: number
 }
 
+export interface AdminUserDetail {
+  user_id: number
+  nickname: string
+  avatar_url: string
+  bio: string
+  gender: number
+  region: string
+  birthday: string
+}
+
+export interface AdminUserRole {
+  user_id: number
+  role_id: number
+}
+
+export interface AdminUserItem {
+  id: number
+  username: string
+  phone: string | null
+  password?: string | null
+  is_ban: boolean
+  is_delete: boolean
+  created_at: string
+  updated_at: string
+  user_detail: AdminUserDetail
+  user_roles: AdminUserRole[]
+}
+
+export interface RoleItem {
+  ID: number
+  Name: string
+  Description: string
+}
+
 // 获取当前登录用户信息
 export function getUserInfoApi() {
   return request({

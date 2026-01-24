@@ -76,6 +76,11 @@ export interface AuditPostParams {
   status: number
 }
 
+export interface AuditListParams {
+  last_id?: number | string
+  page_size?: number
+}
+
 // 推荐流参数
 export interface RecommendParams {
   cursor?: string
@@ -235,10 +240,11 @@ export function deletePostApi(postId: number | string) {
 /**
  * 获取待审批列表（管理员/审核员）
  */
-export function getAuditListApi() {
+export function getAuditListApi(params?: AuditListParams) {
   return request({
     url: '/posts/audit/list',
-    method: 'get'
+    method: 'get',
+    params
   })
 }
 

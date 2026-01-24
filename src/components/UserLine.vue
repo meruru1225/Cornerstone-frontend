@@ -1,66 +1,62 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
-import type { UserHomeInfo } from '../api/user'
+import { computed } from 'vue'
+import type { AdminUserItem } from '../api/user'
 
 const props = defineProps<{
-  user: UserHomeInfo
+  user: AdminUserItem
 }>()
 
-const router = useRouter()
-
-const handleToSpace = () => {
-  router.push({ path: '/space', query: { id: props.user.user_id.toString() } })
-}
+const emit = defineEmits<{
+  (e: 'assign', user: AdminUserItem): void
+}>()
 
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+
+const avatarUrl = computed(() => props.user.user_detail?.avatar_url || defaultAvatar)
+const nickname = computed(() => props.user.user_detail?.nickname || props.user.username || '未命名用户')
+const bio = computed(() => props.user.user_detail?.bio || '暂无简介')
+
+const handleAssign = (event: MouseEvent) => {
+  event.stopPropagation()
+  emit('assign', props.user)
+}
 </script>
 
 <template>
-  <div class="user-line" @click="handleToSpace">
+  <div class="admin-user-line">
     <div class="avatar-wrapper">
-      <img :src="user.avatar_url || defaultAvatar" class="avatar" alt="avatar" />
+      <img :src="avatarUrl" class="avatar" alt="avatar" />
     </div>
 
     <div class="info-wrapper">
       <div class="top-row">
-        <span class="nickname" v-html="user.nickname"></span>
-        <span class="gender-badge" v-if="user.gender !== 0">
-          {{ user.gender === 1 ? '♂' : '♀' }}
-        </span>
+        <span class="nickname">{{ nickname }}</span>
+        <span class="user-id">ID {{ user.id }}</span>
       </div>
-      <div class="bio-row">
-        {{ user.bio || '这个人很懒，什么都没有写~' }}
-      </div>
+      <div class="bio-row">{{ bio }}</div>
     </div>
 
     <div class="action-wrapper">
-      <button class="visit-btn">访问主页</button>
+      <button class="primary-btn" @click="handleAssign">分配权限</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.user-line {
+.admin-user-line {
   display: flex;
   align-items: center;
+  gap: 16px;
   padding: 16px;
   background: #fff;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid #f1f2f3;
-  transition: all 0.2s ease;
-  cursor: pointer;
-  gap: 16px;
-}
-
-.user-line:hover {
-  border-color: #00AEEC;
-  box-shadow: 0 4px 12px rgba(0, 174, 236, 0.08);
-  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.04);
 }
 
 .avatar-wrapper .avatar {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   object-fit: cover;
   border: 1px solid #f0f0f0;
@@ -68,30 +64,30 @@ const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726
 
 .info-wrapper {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 0; /* 防止文本溢出撑开 */
+  gap: 6px;
 }
 
 .top-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .nickname {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: #18191C;
 }
 
-.gender-badge {
+.user-id {
   font-size: 12px;
-  padding: 0 6px;
-  border-radius: 8px;
-  background: #f1f2f3;
-  color: #9499A0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #F4F6F8;
+  color: #61666D;
 }
 
 .bio-row {
@@ -102,20 +98,14 @@ const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726
   text-overflow: ellipsis;
 }
 
-.visit-btn {
-  padding: 6px 16px;
-  border-radius: 18px;
-  border: 1px solid #00AEEC;
-  color: #00AEEC;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.visit-btn:hover {
+.primary-btn {
   background: #00AEEC;
   color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
 }
 </style>

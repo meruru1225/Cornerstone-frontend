@@ -71,7 +71,31 @@ const router = createRouter({
         },
         {
             path: '/admin',
-            component: () => import('../layouts/AdminLayout.vue')
+            component: () => import('../layouts/AdminLayout.vue'),
+            children: [
+                {
+                    path: '',
+                    redirect: '/admin/posts'
+                },
+                {
+                    path: 'users',
+                    name: 'admin-users',
+                    component: () => import('../views/AdminUserSearchView.vue'),
+                    meta: { title: '用户查询与状态' }
+                },
+                {
+                    path: 'roles',
+                    name: 'admin-roles',
+                    component: () => import('../views/AdminUserRoleView.vue'),
+                    meta: { title: '角色权限分配' }
+                },
+                {
+                    path: 'posts',
+                    name: 'admin-posts',
+                    component: () => import('../views/AdminPostAuditView.vue'),
+                    meta: { title: '帖子审核队列' }
+                }
+            ]
         },
         {
             path: '/creator',

@@ -26,6 +26,9 @@ const stopIM = () => {
 
 onMounted(async () => {
   await userStore.fetchUserInfo()
+  if (userStore.isLoggedIn) {
+    await userStore.fetchUserRoles()
+  }
   startIM()
   if (userStore.isLoggedIn) {
     await imStore.fetchUnreadCount()
@@ -47,6 +50,7 @@ onMounted(async () => {
 watch(() => userStore.isLoggedIn, (val) => {
   if (val) {
     startIM()
+    userStore.fetchUserRoles()
     imStore.fetchUnreadCount()
   } else {
     stopIM()
