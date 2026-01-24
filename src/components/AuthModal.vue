@@ -98,7 +98,8 @@ const handleSubmit = async () => {
         account: formData.account,
         password: formData.password,
         smsCode: formData.smsCode,
-        method: loginMethod.value
+        method: loginMethod.value,
+        remember: formData.remember
       })
       showMsg('success', '欢迎回来！登录成功')
       close()

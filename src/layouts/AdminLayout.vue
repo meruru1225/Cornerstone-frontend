@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeMount } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
 
@@ -7,7 +7,18 @@ const userStore = useUserStore()
 const router = useRouter()
 const route = useRoute()
 
-onBeforeMount(() => {
+const waitForUserState = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+onMounted(async () => {
+  if (!userStore.isLoggedIn || !userStore.userInfo) {
+    await waitForUserState(500)
+  }
+  if (!userStore.isLoggedIn || !userStore.userInfo) {
+    await userStore.fetchUserInfo()
+    await userStore.fetchUserRoles()
+  } else if (!userStore.roles.length) {
+    await userStore.fetchUserRoles()
+  }
   const hasAccess = userStore.roles.includes('ADMIN') || userStore.roles.includes('AUDIT')
   if (!userStore.isLoggedIn || !userStore.userInfo || !hasAccess) {
     router.replace('/')
