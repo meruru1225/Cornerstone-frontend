@@ -64,6 +64,39 @@ const displayUrl = computed(() => {
 
 const isDisplayUrlVideo = computed(() => /\.(mp4|webm|ogg|mov)$/i.test(displayUrl.value))
 
+const extractPlainTextFromNode = (root: HTMLElement) => {
+  const container = root.cloneNode(true) as HTMLElement
+  container.querySelectorAll('.code-block__header, .code-block__lang-dropdown').forEach(node => node.remove())
+  container.querySelectorAll('pre').forEach(pre => {
+    const codeEls = Array.from(pre.querySelectorAll('code'))
+    if (codeEls.length > 1) {
+      const lines = codeEls.map(codeEl => codeEl.textContent || '')
+      pre.textContent = lines.join('\n')
+    }
+  })
+  container.querySelectorAll('br').forEach(br => br.replaceWith('\n'))
+  container.querySelectorAll('div, p, li, blockquote, pre, h1, h2, h3, h4, h5, h6').forEach(el => {
+    el.after(document.createTextNode('\n'))
+  })
+  const text = container.textContent || ''
+  return text.replace(/\n{3,}/g, '\n\n').trim()
+}
+
+const extractPlainTextFromHtml = (html: string) => {
+  if (!html) return ''
+  if (typeof document === 'undefined') {
+    return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  }
+  const container = document.createElement('div')
+  container.innerHTML = html || ''
+  return extractPlainTextFromNode(container)
+}
+
+const contentText = computed(() => {
+  const source = props.post.plain_content || props.post.content || ''
+  return extractPlainTextFromHtml(source)
+})
+
 const handleImageLoad = (event: Event) => {
   const img = event.target as HTMLImageElement
   if (img.naturalWidth && img.naturalHeight) {
@@ -124,11 +157,11 @@ const handleUserClick = () => {
         {{ getStatusText(post.status) }}
       </div>
       <div class="quote-col"><span class="quote-symbol">“</span></div>
-      <div class="text-col"><p class="note-text">{{ post.content }}</p></div>
+      <div class="text-col"><p class="note-text">{{ contentText }}</p></div>
     </div>
 
     <div class="card-body">
-      <div class="post-title">{{ post.title || post.content?.substring(0, 15) }}</div>
+      <div class="post-title">{{ post.title || contentText.substring(0, 15) }}</div>
       <div class="card-footer">
         <div class="user-info" @click.stop="handleUserClick">
           <img :src="post.avatar_url" class="avatar-mini" alt="u"/>
@@ -231,6 +264,12 @@ const handleUserClick = () => {
   gap: 8px;
 }
 
+.text-col {
+  flex: 1;
+  min-width: 0;
+  padding: 0 10px;
+}
+
 .quote-symbol {
   font-size: 50px;
   color: rgba(0, 0, 0, 0.08);
@@ -245,6 +284,9 @@ const handleUserClick = () => {
   -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .card-body {

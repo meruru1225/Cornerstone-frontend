@@ -2,6 +2,8 @@
 import {ref, computed, watch, nextTick, onUnmounted} from 'vue'
 import {useRouter} from 'vue-router'
 import {ElMessage, ElMessageBox} from 'element-plus'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github-dark.css'
 import {type PostItem, type MediaItem, type PostMediaPayload} from '../api/post'
 import {
   likePostApi,
@@ -110,10 +112,110 @@ const hasVisualMedia = computed(() => visualMedias.value.length > 0)
 const currentMedia = computed(() => visualMedias.value[activeMediaIndex.value])
 const isMainVideo = (media: MediaItem | undefined): boolean => !!media?.mime_type?.includes('video')
 
-const extractedTags = computed(() => post.value?.content?.match(/#\S+/g) || [])
+const stripHtml = (value: string) => value.replace(/<[^>]+>/g, '')
+const isHtmlContent = (value: string) => /<\/?[a-z][\s\S]*>/i.test(value)
+const sanitizeHtml = (value: string) =>
+  value
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+const extractPlainTextFromNode = (root: HTMLElement) => {
+  const container = root.cloneNode(true) as HTMLElement
+  container.querySelectorAll('.code-block__header, .code-block__lang-dropdown').forEach(node => node.remove())
+  container.querySelectorAll('pre').forEach(pre => {
+    const codeEls = Array.from(pre.querySelectorAll('code'))
+    if (codeEls.length > 1) {
+      const lines = codeEls.map(codeEl => codeEl.textContent || '')
+      pre.textContent = lines.join('\n')
+    }
+  })
+  container.querySelectorAll('br').forEach(br => br.replaceWith('\n'))
+  container.querySelectorAll('div, p, li, blockquote, pre, h1, h2, h3, h4, h5, h6').forEach(el => {
+    el.after(document.createTextNode('\n'))
+  })
+  const text = container.textContent || ''
+  return text.replace(/\n{3,}/g, '\n\n').trim()
+}
+const extractPlainTextFromHtml = (html: string) => {
+  if (!html) return ''
+  if (typeof document === 'undefined') {
+    return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  }
+  const container = document.createElement('div')
+  container.innerHTML = html || ''
+  return extractPlainTextFromNode(container)
+}
+const normalizePlainText = (value: string) =>
+  value
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+const extractedTags = computed(() => {
+  const raw = post.value?.content || ''
+  const text = stripHtml(raw)
+  return text.match(/#\S+/g) || []
+})
+
 const cleanContent = computed(() => {
   if (!post.value?.content) return ''
   return post.value.content.replace(/#\S+/g, '').trim()
+})
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const getCodeLangFromElement = (element: Element) => {
+  const dataLang = element.getAttribute('data-lang')
+  if (dataLang) return dataLang
+  const classLang = Array.from(element.classList).find(name => name.startsWith('language-'))
+  return classLang ? classLang.replace('language-', '') : ''
+}
+
+const applyHighlight = (html: string) => {
+  const container = document.createElement('div')
+  container.innerHTML = html
+  container.querySelectorAll('pre').forEach(pre => {
+    const codeEls = Array.from(pre.querySelectorAll('code'))
+    if (codeEls.length > 1) {
+      const lines = codeEls.map(codeEl => codeEl.textContent || '')
+      pre.innerHTML = ''
+      const merged = document.createElement('code')
+      merged.textContent = lines.join('\n')
+      pre.appendChild(merged)
+    }
+  })
+  const blocks = container.querySelectorAll('pre code')
+  blocks.forEach(block => {
+    const lang = getCodeLangFromElement(block)
+    const text = block.textContent || ''
+    const result = lang && hljs.getLanguage(lang)
+      ? hljs.highlight(text, { language: lang }).value
+      : hljs.highlightAuto(text).value
+    block.innerHTML = result
+    block.classList.add('hljs')
+  })
+  return container.innerHTML
+}
+
+const formattedContent = computed(() => {
+  const raw = cleanContent.value
+  if (!raw) return ''
+  if (isHtmlContent(raw)) {
+    return applyHighlight(sanitizeHtml(raw))
+  }
+  return escapeHtml(raw).replace(/\n/g, '<br>')
+})
+
+const plainContent = computed(() => {
+  const source = post.value?.plain_content || post.value?.content || ''
+  const withoutTags = source.replace(/#\S+/g, '').trim()
+  return normalizePlainText(extractPlainTextFromHtml(withoutTags))
 })
 
 const inputPlaceholder = computed(() => {
@@ -617,6 +719,7 @@ const formatFullDate = (time: string) => {
                     <video
                         v-if="isMainVideo(currentMedia)"
                         :src="currentMedia?.url"
+                        :poster="currentMedia?.cover_url || (currentMedia?.url ? `${currentMedia.url}?vframe/jpg/offset/1` : undefined)"
                         controls
                         autoplay
                         class="media-content"
@@ -663,7 +766,7 @@ const formatFullDate = (time: string) => {
                 <span class="poster-tag">CORNERSTONE</span>
                 <h1 class="poster-title">{{ post.title }}</h1>
                 <div class="poster-line"></div>
-                <p class="poster-desc">{{ cleanContent?.substring(0, 150) }}...</p>
+                <p class="poster-desc">{{ plainContent?.substring(0, 150) }}...</p>
               </div>
             </div>
           </div>
@@ -702,7 +805,7 @@ const formatFullDate = (time: string) => {
             <div class="panel-scroll">
               <article class="article-content">
                 <h2 class="title">{{ post.title }}</h2>
-                <pre class="content">{{ cleanContent }}</pre>
+                <div class="content" v-html="formattedContent"></div>
 
                 <div v-if="postAudios.length > 0" class="post-audio-section">
                   <div
@@ -1284,6 +1387,7 @@ const formatFullDate = (time: string) => {
   font-size: 20px;
   line-height: 1.6;
   opacity: 0.95;
+  white-space: pre-line;
 }
 
 .info-panel {
@@ -1424,6 +1528,61 @@ button.follow-btn.is-following:hover {
   line-height: 1.8;
   white-space: pre-wrap;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.content strong {
+  font-weight: 800;
+}
+
+.content em {
+  font-style: italic;
+}
+
+.content del {
+  text-decoration: line-through;
+  color: #8A9099;
+}
+
+
+.content h1,
+.content h2,
+.content h3,
+.content h4,
+.content h5,
+.content h6 {
+  margin: 6px 0;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.content h1 { font-size: 24px; }
+.content h2 { font-size: 22px; }
+.content h3 { font-size: 20px; }
+.content h4 { font-size: 18px; }
+.content h5 { font-size: 16px; }
+.content h6 { font-size: 15px; }
+
+.content blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: #f7f9fb;
+  border-left: 4px solid #00AEEC;
+  border-radius: 8px;
+  color: #4a4f55;
+}
+
+.content ul {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.content ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.content li {
+  margin: 4px 0;
 }
 
 .tags {

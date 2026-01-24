@@ -57,8 +57,44 @@ const statusText = computed(() => {
 
 const statusClass = computed(() => `status-${props.post.status}`)
 const titleText = computed(() => props.post.title || '未命名标题')
-const contentText = computed(() => (props.post.content || '').replace(/\s+/g, ' ').trim().slice(0, 80))
-const placeholderText = computed(() => (props.post.title || props.post.content || '').replace(/\s+/g, ' ').trim().slice(0, 40))
+const extractPlainTextFromNode = (root: HTMLElement) => {
+  const container = root.cloneNode(true) as HTMLElement
+  container.querySelectorAll('.code-block__header, .code-block__lang-dropdown').forEach(node => node.remove())
+  container.querySelectorAll('pre').forEach(pre => {
+    const codeEls = Array.from(pre.querySelectorAll('code'))
+    if (codeEls.length > 1) {
+      const lines = codeEls.map(codeEl => codeEl.textContent || '')
+      pre.textContent = lines.join('\n')
+    }
+  })
+  container.querySelectorAll('br').forEach(br => br.replaceWith('\n'))
+  container.querySelectorAll('div, p, li, blockquote, pre, h1, h2, h3, h4, h5, h6').forEach(el => {
+    el.after(document.createTextNode('\n'))
+  })
+  const text = container.textContent || ''
+  return text.replace(/\n{3,}/g, '\n\n').trim()
+}
+
+const extractPlainTextFromHtml = (html: string) => {
+  if (!html) return ''
+  if (typeof document === 'undefined') {
+    return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  }
+  const container = document.createElement('div')
+  container.innerHTML = html || ''
+  return extractPlainTextFromNode(container)
+}
+
+const normalizePlainText = (value: string) => value.replace(/\s+/g, ' ').trim()
+const toPlainText = (value: string) => normalizePlainText(extractPlainTextFromHtml(value))
+const contentText = computed(() => {
+  const source = props.post.plain_content || props.post.content || ''
+  return toPlainText(source).slice(0, 80)
+})
+const placeholderText = computed(() => {
+  const source = props.post.title || props.post.plain_content || props.post.content || ''
+  return toPlainText(source).slice(0, 40)
+})
 
 const likeCount = computed(() => props.post.like_count || 0)
 const commentCount = computed(() => props.post.comment_count || 0)

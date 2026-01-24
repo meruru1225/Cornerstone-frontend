@@ -25,6 +25,7 @@ export interface PostItem {
   id: number
   title: string
   content: string
+  plain_content?: string
   status: number // 1: 正常, 2: 待审核
   created_at: string
   updated_at: string
@@ -56,6 +57,7 @@ export interface TagSearchParams extends PageParams {
 export interface CreatePostParams {
   title: string
   content: string
+  plain_content: string
   medias: PostMediaPayload[]
 }
 
@@ -64,6 +66,7 @@ export interface UpdatePostParams {
   id: number | string
   title: string
   content: string
+  plain_content: string
   medias: PostMediaPayload[]
 }
 
