@@ -5,30 +5,6 @@ export interface MetricItem {
   value: number
 }
 
-export interface UserMetricData {
-  user_id: number
-  days: number
-  fans: MetricItem[]
-}
-
-export interface UserContentMetricData {
-  user_id: number
-  days: number
-  likes: MetricItem[]
-  comments: MetricItem[]
-  collects: MetricItem[]
-  views: MetricItem[]
-}
-
-export interface PostMetricData {
-  post_id: number
-  days: number
-  likes: MetricItem[]
-  comments: MetricItem[]
-  collects: MetricItem[]
-  views: MetricItem[]
-}
-
 /**
  * 用户指标7日数据
  */
