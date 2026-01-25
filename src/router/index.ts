@@ -75,7 +75,9 @@ const router = createRouter({
             children: [
                 {
                     path: '',
-                    redirect: '/admin/posts'
+                    name: 'admin-home',
+                    component: () => import('../views/AdminHomeView.vue'),
+                    meta: { title: '管理员首页' }
                 },
                 {
                     path: 'users',

@@ -30,6 +30,13 @@ const isSuperAdmin = computed(() => userStore.roles.includes('ADMIN'))
 const adminMenu = computed(() => {
   const menu = []
 
+  menu.push({
+    group: '概览',
+    items: [
+      { name: '管理员首页', path: '/admin', icon: 'M3 10.5L12 3l9 7.5v9.5a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z' }
+    ]
+  })
+
   // 仅超级管理员可见用户管理
   if (isSuperAdmin.value) {
     menu.push({
