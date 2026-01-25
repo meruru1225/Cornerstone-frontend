@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import PostLine from '../components/PostLine.vue'
 import PostDetail from '../components/PostDetail.vue'
-import { getMyPostsApi, searchMyPostsApi, type PostItem } from '../api/post'
+import { getMyPostsApi, searchMyPostsApi, deletePostApi, type PostItem } from '../api/post'
 import { getPostActionStateApi } from '../api/post-action'
 
 const router = useRouter()
@@ -25,6 +26,28 @@ const handleView = (id: number) => {
 
 const handleEditItem = (id: number) => {
   router.push({ path: '/creator/publish', query: { id: id.toString() } })
+}
+
+const handleDeleteItem = (id: number) => {
+  ElMessageBox.confirm(
+    '确定要删除这条帖子吗？此操作无法恢复。',
+    '提示',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  )
+    .then(async () => {
+      try {
+        await deletePostApi(id)
+        ElMessage.success('删除成功')
+        fetchPosts()
+      } catch (error) {
+        ElMessage.error('删除失败')
+      }
+    })
+    .catch(() => {})
 }
 
 const handleSearch = () => {
@@ -119,10 +142,12 @@ onMounted(() => {
           :selected="post.id === selectedPostId"
         :show-status="currentTab === 'all'"
           :show-edit="true"
+          :show-delete="true"
           :show-trend="false"
           @select="handleSelect"
           @view="handleView"
           @edit="handleEditItem"
+          @delete="handleDeleteItem"
         />
       </div>
 

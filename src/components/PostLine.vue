@@ -11,11 +11,13 @@ const props = withDefaults(defineProps<{
   showStatus?: boolean
   showTrend?: boolean
   showEdit?: boolean
+  showDelete?: boolean
 }>(), {
   actionMode: 'manage',
   showStatus: true,
   showTrend: false,
-  showEdit: false
+  showEdit: false,
+  showDelete: false
 })
 
 const emit = defineEmits<{
@@ -23,6 +25,7 @@ const emit = defineEmits<{
   (e: 'view', id: number): void
   (e: 'view-trend', id: number): void
   (e: 'edit', id: number): void
+  (e: 'delete', id: number): void
   (e: 'approve', id: number): void
   (e: 'reject', id: number): void
 }>()
@@ -88,6 +91,10 @@ const handleEdit = (event: MouseEvent) => {
   event.stopPropagation()
   emit('edit', props.post.id)
 }
+const handleDelete = (event: MouseEvent) => {
+  event.stopPropagation()
+  emit('delete', props.post.id)
+}
 const handleApprove = (event: MouseEvent) => {
   event.stopPropagation()
   emit('approve', props.post.id)
@@ -133,6 +140,7 @@ const handleReject = (event: MouseEvent) => {
       <button class="ghost-btn" @click="handleView">查看</button>
       <button v-if="showTrend" class="ghost-btn" @click="handleViewTrend">数据趋势</button>
       <button v-if="actionMode === 'manage' && showEdit" class="primary-btn" @click="handleEdit">编辑</button>
+      <button v-if="actionMode === 'manage' && showDelete" class="danger-btn" @click="handleDelete">删除</button>
       <template v-if="actionMode === 'audit'">
         <button class="primary-btn" @click="handleApprove">通过</button>
         <button class="danger-btn" @click="handleReject">拒绝</button>
