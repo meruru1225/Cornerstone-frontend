@@ -23,6 +23,7 @@ import {uploadMediaApi, type MediaUploadData} from '../api/media'
 import {useUserStore} from '../stores/user'
 import {usePostCacheStore} from '../stores/postCache'
 import { extractPlainTextFromHtml } from '../utils/plainText'
+import { formatRFC3339ToLocal } from '../utils/time'
 
 interface LocalMediaData extends MediaUploadData {
   previewUrl: string
@@ -652,16 +653,27 @@ const handleShare = async () => {
 }
 
 const formatTime = (time: string) => {
-  if (!time) return ''
-  const date = new Date(time)
-  return `${date.getMonth() + 1}-${date.getDate()}`
+  const formatted = formatRFC3339ToLocal(time)
+  if (!formatted) return ''
+  const datePart = formatted.split(' ')[0] || ''
+  const parts = datePart.split('-')
+  if (parts.length < 3) return ''
+  const month = parts[1] || ''
+  const day = parts[2] || ''
+  return `${Number(month)}-${Number(day)}`
 }
 
 // 格式化为中文年月日
 const formatFullDate = (time: string) => {
-  if (!time) return ''
-  const date = new Date(time)
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
+  const formatted = formatRFC3339ToLocal(time)
+  if (!formatted) return ''
+  const datePart = formatted.split(' ')[0] || ''
+  const parts = datePart.split('-')
+  if (parts.length < 3) return ''
+  const year = parts[0] || ''
+  const month = parts[1] || ''
+  const day = parts[2] || ''
+  return `${year}年${Number(month)}月${Number(day)}日`
 }
 </script>
 

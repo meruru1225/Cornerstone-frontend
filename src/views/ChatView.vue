@@ -16,6 +16,7 @@ import {uploadMediaApi} from '../api/media'
 import {useUserStore} from '../stores/user'
 import {useImStore} from '../stores/im'
 import {ElMessage} from 'element-plus'
+import { formatRFC3339ToLocal } from '../utils/time'
 
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
@@ -92,6 +93,14 @@ const playAudio = (url: string) => {
 const openFile = (url: string) => { window.open(url, '_blank') }
 
 const isNormalMessage = (type: MsgType) => type === MsgType.NORMAL
+
+const formatChatTime = (timeStr?: string) => {
+  if (!timeStr) return ''
+  const formatted = formatRFC3339ToLocal(timeStr)
+  if (!formatted) return ''
+  const timePart = formatted.split(' ')[1]
+  return timePart ? timePart.slice(0, 5) : ''
+}
 
 const getMsgPreview = (msg: MsgItem) => {
   if (msg.msg_type === MsgType.AUDIO) return '[语音消息]'
@@ -543,7 +552,7 @@ const updateWaveform = () => {
             <div class="c-info">
               <div class="c-top">
                 <span class="c-name">{{ c.title || '未知用户' }}</span>
-                <span class="c-time">{{ new Date(c.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</span>
+                <span class="c-time">{{ formatChatTime(c.last_message_at) }}</span>
               </div>
               <div class="c-bottom">
                 <span class="c-last">{{ c.last_msg_content }}</span>

@@ -9,6 +9,7 @@ import {
   type SysboxMsgItem
 } from '../api/sysbox'
 import { useSysboxStore } from '../stores/sysbox'
+import { formatRFC3339ToLocal } from '../utils/time'
 
 const router = useRouter()
 const sysboxStore = useSysboxStore()
@@ -75,7 +76,14 @@ const formatTime = (timeStr: string) => {
   if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
   if (diff < 259200000) return `${Math.floor(diff / 86400000)}天前`
-  return `${date.getMonth() + 1}月${date.getDate()}日`
+  const formatted = formatRFC3339ToLocal(timeStr)
+  if (!formatted) return ''
+  const datePart = formatted.split(' ')[0] || ''
+  const parts = datePart.split('-')
+  if (parts.length < 3) return ''
+  const month = parts[1] || ''
+  const day = parts[2] || ''
+  return `${Number(month)}月${Number(day)}日`
 }
 
 // --- API 交互 ---

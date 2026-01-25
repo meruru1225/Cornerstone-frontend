@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { type PostItem } from '../api/post'
 import { extractPlainTextFromHtml } from '../utils/plainText'
+import { formatRFC3339ToLocal } from '../utils/time'
 
 const props = withDefaults(defineProps<{
   post: PostItem
@@ -124,7 +125,7 @@ const handleReject = (event: MouseEvent) => {
         <span class="dot">·</span>
         <span>浏览 {{ viewCount }}</span>
         <span class="dot">·</span>
-        <span>{{ post.created_at }}</span>
+        <span>{{ formatRFC3339ToLocal(post.created_at) || '-' }}</span>
       </div>
     </div>
 

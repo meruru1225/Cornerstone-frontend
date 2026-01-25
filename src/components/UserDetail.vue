@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { AdminUserItem, RoleItem } from '../api/user'
+import { formatRFC3339ToLocal } from '../utils/time'
 
 const props = defineProps<{
   user: AdminUserItem
@@ -87,11 +88,11 @@ const handleManageRoles = () => {
       </div>
       <div class="detail-item">
         <span class="label">创建时间</span>
-        <span class="value">{{ user.created_at || '-' }}</span>
+        <span class="value">{{ formatRFC3339ToLocal(user.created_at) || '-' }}</span>
       </div>
       <div class="detail-item">
         <span class="label">更新时间</span>
-        <span class="value">{{ user.updated_at || '-' }}</span>
+        <span class="value">{{ formatRFC3339ToLocal(user.updated_at) || '-' }}</span>
       </div>
       <div class="detail-item full">
         <span class="label">角色</span>

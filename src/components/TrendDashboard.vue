@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { MetricItem } from '../api/metric'
+import { formatRFC3339ToLocal } from '../utils/time'
 
 const props = withDefaults(defineProps<{
   data: MetricItem[]
@@ -82,7 +83,16 @@ const chartWidth = computed(() => {
   return Math.max(baseWidth, currentData.value.length * perPointWidth)
 })
 
-const formatDate = (date: string) => date ? date.slice(5) : ''
+const formatDate = (date: string) => {
+  const formatted = formatRFC3339ToLocal(date)
+  if (!formatted) return ''
+  const datePart = formatted.split(' ')[0] || ''
+  const parts = datePart.split('-')
+  if (parts.length < 3) return ''
+  const month = parts[1] || ''
+  const day = parts[2] || ''
+  return `${Number(month)}-${Number(day)}`
+}
 const formatValue = (value: number) => value.toLocaleString()
 
 const getY = (value: number, min: number, max: number) => {
@@ -140,11 +150,13 @@ const setHover = (
 ) => {
   const min = type === 'total' ? totalMinValue.value : deltaMinValue.value
   const max = type === 'total' ? totalMaxValue.value : deltaMaxValue.value
+  const formatted = formatRFC3339ToLocal(item.date)
+  const datePart = formatted ? formatted.split(' ')[0] || '' : ''
   hoverInfo.value = {
     type,
     x: getX(index, currentData.value.length),
     y: getY(value, min, max),
-    date: item.date,
+    date: datePart,
     value
   }
   updateTooltipSize(type)
