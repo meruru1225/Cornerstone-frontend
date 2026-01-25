@@ -117,7 +117,8 @@ const router = createRouter({
                 },
                 {
                     path: 'dashboard',
-                    redirect: '/creator/dashboard/fans'
+                    redirect: '/creator/dashboard/fans',
+                    meta: { title: '数据看板' }
                 },
                 {
                     path: 'dashboard/fans',
@@ -170,6 +171,12 @@ router.beforeEach(async (_to, _from, next) => {
     }
 
     next()
+})
+
+router.afterEach((to) => {
+    const baseTitle = 'Cornerstone'
+    const metaTitle = to.meta?.title as string | undefined
+    document.title = metaTitle ? `${metaTitle} - ${baseTitle}` : baseTitle
 })
 
 export default router
