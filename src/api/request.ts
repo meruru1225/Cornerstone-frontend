@@ -6,6 +6,21 @@ const service = axios.create({
   withCredentials: true // 允许跨域携带 Cookie
 })
 
+const clearAuthState = async () => {
+  const { useUserStore } = await import('../stores/user')
+  const { default: router } = await import('../router')
+  const userStore = useUserStore()
+  userStore.userInfo = null
+  userStore.roles = []
+  userStore.isLoggedIn = false
+  const currentPath = router.currentRoute.value.path
+  if (currentPath.startsWith('/admin') || currentPath.startsWith('/creator')) {
+    const { ElMessage } = await import('element-plus')
+    ElMessage.warning('登录状态已过期')
+    router.replace('/')
+  }
+}
+
 // 请求拦截器
 service.interceptors.request.use(
   (config) => {
@@ -19,22 +34,21 @@ service.interceptors.request.use(
 
 // 响应拦截器
 service.interceptors.response.use(
-  (response) => {
+  async (response) => {
     const res = response.data
     // 如果后端返回 code 字段，且不为 200，则视为错误
     if (res.code !== undefined && res.code !== 200) {
       if (res.code === 401) {
-        // 401 未授权，仅抛出错误，交给调用方处理（如切换为游客模式）
-        // 不再强制跳转登录页
+        await clearAuthState()
       }
       return Promise.reject(new Error(res.message || 'Error'))
     }
     // 兼容部分可能直接返回数据的接口，或者只返回 code=200 的情况
     return res
   },
-  (error) => {
+  async (error) => {
     if (error.response && error.response.status === 401) {
-      // 401 未授权，仅抛出错误
+      await clearAuthState()
     }
     return Promise.reject(error)
   }
