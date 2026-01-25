@@ -1,21 +1,49 @@
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { getUnreadCountApi } from '../api/sysbox'
+import {defineStore} from 'pinia'
+import {ref} from 'vue'
+import {getUnreadCountSSE} from '../api/sysbox'
 
 export const useSysboxStore = defineStore('sysbox', () => {
     const unreadCount = ref(0)
+    let eventSource: EventSource | null = null
 
-    const fetchUnreadCount = async () => {
+    const connectUnreadCountSSE = () => {
+        disconnectUnreadCountSSE()
+        
         try {
-            const res: any = await getUnreadCountApi()
-            if (typeof res === 'number') {
-                unreadCount.value = res
-            } else {
-                const data = res.data || res
-                unreadCount.value = data?.unread_count ?? data?.unreadCount ?? 0
+            eventSource = getUnreadCountSSE()
+            
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data)
+                    if (typeof data === 'object' && data !== null && 'unread_count' in data) {
+                        unreadCount.value = data.unread_count
+                    } else if (typeof data === 'number') {
+                        unreadCount.value = data
+                    }
+                } catch (parseError) {
+                    console.error('解析 SSE 消息失败:', parseError)
+                }
+            }
+
+            eventSource.addEventListener('ping', () => {
+                // 心跳保持连接
+            })
+            
+            eventSource.onerror = (error) => {
+                console.error('SSE 连接错误:', error)
+                setTimeout(() => {
+                    connectUnreadCountSSE()
+                }, 5000)
             }
         } catch (error) {
-            console.error('获取未读数失败', error)
+            console.error('建立 SSE 连接失败:', error)
+        }
+    }
+
+    const disconnectUnreadCountSSE = () => {
+        if (eventSource) {
+            eventSource.close()
+            eventSource = null
         }
     }
 
@@ -29,7 +57,8 @@ export const useSysboxStore = defineStore('sysbox', () => {
 
     return {
         unreadCount,
-        fetchUnreadCount,
+        connectUnreadCountSSE,
+        disconnectUnreadCountSSE,
         decreaseCount,
         clearCount
     }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {onMounted, computed, watch} from 'vue'
+import {onMounted, computed, watch, onUnmounted} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {storeToRefs} from 'pinia'
 import {useUserStore} from '../stores/user'
@@ -84,36 +84,22 @@ const handleLogout = () => {
   })
 }
 
-let pollingTimer: any = null
-
-const startPolling = () => {
-  if (pollingTimer) return
-  sysboxStore.fetchUnreadCount()
-  pollingTimer = setInterval(() => {
-    if (userStore.userInfo) {
-      sysboxStore.fetchUnreadCount()
-    } else {
-      stopPolling()
-    }
-  }, 30000)
-}
-
-const stopPolling = () => {
-  if (pollingTimer) {
-    clearInterval(pollingTimer)
-    pollingTimer = null
-  }
-}
-
 onMounted(() => {
   watch(
       () => userStore.userInfo,
       (newVal) => {
-        if (newVal) startPolling()
-        else stopPolling()
+        if (newVal) {
+          sysboxStore.connectUnreadCountSSE()
+        } else {
+          sysboxStore.disconnectUnreadCountSSE()
+        }
       },
       {immediate: true}
   )
+})
+
+onUnmounted(() => {
+  sysboxStore.disconnectUnreadCountSSE()
 })
 </script>
 

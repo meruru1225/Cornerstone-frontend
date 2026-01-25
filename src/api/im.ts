@@ -105,6 +105,12 @@ class IMClient {
 
     async connect() {
         if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING || this.isConnecting) return
+        const { useUserStore } = await import('../stores/user')
+        const userStore = useUserStore()
+        if (!userStore.isLoggedIn) {
+            this.disconnect()
+            return
+        }
         this.shouldReconnect = true
         this.isConnecting = true
         try {
@@ -137,6 +143,12 @@ class IMClient {
         } catch (e) {
             this.isConnecting = false
             console.error('IM连接失败', e)
+            const { useUserStore } = await import('../stores/user')
+            const userStore = useUserStore()
+            if (!userStore.isLoggedIn) {
+                this.disconnect()
+                return
+            }
             if (this.shouldReconnect) this.scheduleReconnect()
         }
     }

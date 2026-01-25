@@ -122,7 +122,6 @@ const fetchMessages = async (reset = false) => {
       messages.value = [...messages.value, ...list]
     }
     page.value++
-    await sysboxStore.fetchUnreadCount() // [Fix]: 加上 await
   } catch (error) {
     console.error(error)
   } finally {

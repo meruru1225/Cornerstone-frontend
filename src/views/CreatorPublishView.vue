@@ -2,11 +2,13 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createPostApi, updatePostApi, getPostDetailApi, type PostMediaPayload } from '../api/post'
+import { createPostApi, updatePostApi, getPostDetailApi, type PostMediaPayload, type PostItem } from '../api/post'
 import { uploadMediaApi } from '../api/media'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
 import { extractPlainTextFromHtml, extractPlainTextFromNode } from '../utils/plainText'
+import PostDetail from '../components/PostDetail.vue'
+import { useUserStore } from '../stores/user'
 
 interface LocalMediaItem {
   url: string
@@ -16,10 +18,12 @@ interface LocalMediaItem {
   duration?: number
   previewUrl: string
   coverUrl?: string
+  coverPreview?: string
 }
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 const title = ref('')
 const content = ref('')
@@ -34,6 +38,9 @@ const coverInputRef = ref<HTMLInputElement | null>(null)
 const coverTargetIndex = ref<number | null>(null)
 const codeLang = ref('plaintext')
 const isHighlighting = ref(false)
+const previewMedia = ref<{ url: string; type: 'image' | 'video' } | null>(null)
+const isPreviewVisible = ref(false)
+const previewData = ref<PostItem | undefined>(undefined)
 
 const codeLangOptions = [
   { value: 'plaintext', label: '文本' },
@@ -106,7 +113,8 @@ const handleFileChange = async (event: Event) => {
           height: res.data.height,
           duration: res.data.duration,
           previewUrl,
-          coverUrl: undefined
+          coverUrl: undefined,
+          coverPreview: undefined
         } as LocalMediaItem
       })
     )
@@ -131,6 +139,10 @@ const removeMedia = (index: number) => {
 const removeCover = (index: number) => {
   const target = mediaList.value[index]
   if (!target) return
+  if (target.coverPreview) {
+    URL.revokeObjectURL(target.coverPreview)
+    target.coverPreview = undefined
+  }
   target.coverUrl = undefined
 }
 
@@ -140,13 +152,21 @@ const handleCoverChange = async (event: Event) => {
   if (index === null || !input.files || input.files.length === 0) return
   const file = input.files[0]
   if (!file) return
+
+  // 立即生成预览
+  const previewUrl = URL.createObjectURL(file)
+  const target = mediaList.value[index]
+  if (target) {
+    if (target.coverPreview) URL.revokeObjectURL(target.coverPreview)
+    target.coverPreview = previewUrl
+  }
+
   isCoverUploading.value = true
   try {
     const res: any = await uploadMediaApi(file)
     if (res?.data?.url) {
-      const target = mediaList.value[index]
-      if (target) {
-        target.coverUrl = res.data.url
+      if (mediaList.value[index]) {
+        mediaList.value[index].coverUrl = res.data.url
       }
     } else {
       ElMessage.error('封面上传失败，请稍后重试')
@@ -668,6 +688,66 @@ const draftTags = computed(() => {
   return match[1].split(/\s+/).filter(Boolean)
 })
 
+const handlePreview = async () => {
+  if (!title.value.trim()) {
+    ElMessage.warning('请输入标题')
+    return
+  }
+  const plain = editorRef.value ? extractPlainTextFromNode(editorRef.value).trim() : extractPlainTextFromHtml(content.value).trim()
+  if (!plain) {
+    ElMessage.warning('请输入内容')
+    return
+  }
+  
+  // 更新内容状态
+  let rawContent = content.value
+  if (contentText.value.endsWith('\n')) {
+    const container = document.createElement('div')
+    container.innerHTML = rawContent
+    const last = container.lastChild
+    if (last instanceof HTMLElement) {
+      const lastText = last.textContent || ''
+      if (last.innerHTML === '<br>' || lastText.trim() === '') {
+        container.removeChild(last)
+        rawContent = container.innerHTML
+      }
+    }
+  }
+  const safeContent = sanitizeHtml(rawContent)
+  const safePlain = extractPlainTextFromHtml(safeContent)
+  const payload = toPayload()
+
+  // 构造预览数据
+  previewData.value = {
+    id: 0,
+    title: title.value.trim(),
+    content: safeContent,
+    plain_content: safePlain,
+    status: 1,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    medias: mediaList.value.map(m => ({
+      url: m.previewUrl || m.url, // 优先使用预览URL
+      mime_type: m.mime || '',
+      width: m.width,
+      height: m.height,
+      duration: m.duration,
+      cover_url: m.coverPreview || m.coverUrl // 优先使用封面预览URL
+    })),
+    user_id: userStore.userInfo?.user_id || 0,
+    nickname: userStore.userInfo?.nickname || '我',
+    avatar_url: userStore.userInfo?.avatar_url || '',
+    like_count: 0,
+    collect_count: 0,
+    view_count: 0,
+    comment_count: 0,
+    is_liked: false,
+    is_collected: false
+  }
+  
+  isPreviewVisible.value = true
+}
+
 const handleSubmit = async () => {
   if (!title.value.trim()) {
     ElMessage.warning('请输入标题')
@@ -836,13 +916,30 @@ onUnmounted(() => {
             class="media-item"
             :class="{ audio: media.mime?.startsWith('audio'), video: media.mime?.startsWith('video') }"
           >
-            <img v-if="media.mime?.startsWith('image')" :src="media.previewUrl" alt="preview" />
-            <img
-              v-else-if="media.mime?.startsWith('video') && media.coverUrl"
-              :src="media.coverUrl"
-              alt="cover"
+            <img 
+              v-if="media.mime?.startsWith('image')" 
+              :src="media.previewUrl" 
+              alt="preview" 
+              class="media-preview-content"
+              @click="previewMedia = { url: media.previewUrl, type: 'image' }"
             />
-            <video v-else-if="media.mime?.startsWith('video')" :src="media.previewUrl" muted></video>
+            <img
+              v-else-if="media.mime?.startsWith('video') && (media.coverPreview || media.coverUrl)"
+              :src="media.coverPreview || media.coverUrl"
+              alt="cover"
+              class="media-preview-content"
+              @click="previewMedia = { url: media.previewUrl, type: 'video' }"
+            />
+            <template v-else-if="media.mime?.startsWith('video')">
+              <video 
+                :src="media.previewUrl" 
+                muted
+                class="media-preview-content video-no-pointer"
+              ></video>
+              <div class="video-play-mask" @click="previewMedia = { url: media.previewUrl, type: 'video' }">
+                <svg viewBox="0 0 24 24" width="32" fill="#fff" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </template>
             <div v-else class="audio-placeholder">音频</div>
             <div v-if="media.mime?.startsWith('video')" class="cover-actions">
               <button
@@ -854,7 +951,7 @@ onUnmounted(() => {
                 {{ isCoverUploading ? '上传中' : '设置封面' }}
               </button>
               <button
-                v-if="media.coverUrl"
+                v-if="media.coverUrl || media.coverPreview"
                 type="button"
                 class="cover-btn ghost"
                 @click="removeCover(index)"
@@ -869,11 +966,25 @@ onUnmounted(() => {
       </div>
 
       <div class="action-row">
+        <button class="secondary-btn" @click="handlePreview" style="margin-right: 12px;">预览</button>
         <button class="primary-btn" @click="handleSubmit" :disabled="isSaving">
           {{ isSaving ? '提交中...' : (editingId ? '保存修改' : '发布') }}
         </button>
       </div>
     </div>
+
+    <div v-if="previewMedia && previewMedia.type" class="full-media-overlay" @click="previewMedia = null">
+      <img v-if="previewMedia.type === 'image'" :src="previewMedia.url" alt="全屏" @click.stop />
+      <video v-else-if="previewMedia.type === 'video'" :src="previewMedia.url" controls autoplay @click.stop></video>
+      <div class="close-btn">×</div>
+    </div>
+
+    <PostDetail 
+      v-model="isPreviewVisible" 
+      :previewData="previewData"
+      :postId="null" 
+      entry-mode="blank" 
+    />
   </div>
 </template>
 
@@ -1100,34 +1211,49 @@ onUnmounted(() => {
   color: #00AEEC;
   border: none;
   padding: 6px 16px;
-  border-radius: 20px;
+  border-radius: 999px;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   transition: all 0.2s;
 }
 
+.upload-btn:hover {
+  background: rgba(0, 174, 236, 0.2);
+}
+
 .upload-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .media-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 12px;
-  margin-top: 12px;
+  gap: 16px;
+  margin-top: 16px;
 }
 
 .media-item {
   position: relative;
-  background: #F4F6F8;
+  width: 100%;
+  aspect-ratio: 1;
   border-radius: 12px;
   overflow: hidden;
-  height: 100px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: #000;
+  border: 1px solid #eee;
+}
+
+.media-preview-content {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.media-preview-content:hover {
+  opacity: 0.9;
 }
 
 .media-item img,
@@ -1137,23 +1263,46 @@ onUnmounted(() => {
   object-fit: cover;
 }
 
-.media-item.audio {
-  background: rgba(0, 174, 236, 0.08);
-}
-
-.media-item.video::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 1px dashed rgba(0, 174, 236, 0.3);
-  border-radius: 12px;
-  pointer-events: none;
-}
-
 .audio-placeholder {
-  color: #00AEEC;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F4F6F8;
+  color: #61666D;
+  font-size: 12px;
   font-weight: 600;
-  font-size: 14px;
+}
+
+.full-media-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  backdrop-filter: blur(15px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.full-media-overlay img,
+.full-media-overlay video {
+  max-width: 95%;
+  max-height: 95%;
+  border-radius: 12px;
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.6);
+}
+
+.close-btn {
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  color: #fff;
+  font-size: 44px;
+  font-weight: 200;
+  cursor: pointer;
 }
 
 .cover-actions {
@@ -1162,6 +1311,7 @@ onUnmounted(() => {
   bottom: 6px;
   display: flex;
   gap: 6px;
+  z-index: 2;
 }
 
 .cover-btn {
@@ -1197,6 +1347,7 @@ onUnmounted(() => {
   color: #fff;
   cursor: pointer;
   font-size: 14px;
+  z-index: 2;
 }
 
 .media-empty {
@@ -1226,5 +1377,42 @@ onUnmounted(() => {
 .primary-btn:disabled {
   background: #A0DFFE;
   cursor: not-allowed;
+}
+
+.secondary-btn {
+  background: #F4F6F8;
+  color: #61666D;
+  border: none;
+  border-radius: 14px;
+  padding: 12px 32px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.secondary-btn:hover {
+  background: #E3E5E7;
+  color: #18191C;
+}
+
+.video-no-pointer {
+  pointer-events: none;
+}
+
+.video-play-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  z-index: 1;
+  transition: background 0.2s;
+}
+
+.video-play-mask:hover {
+  background: rgba(0, 0, 0, 0.4);
 }
 </style>

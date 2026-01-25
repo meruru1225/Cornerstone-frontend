@@ -33,6 +33,7 @@ const props = withDefaults(defineProps<{
   modelValue: boolean
   postId: number | null
   entryMode?: 'main' | 'blank'
+  previewData?: PostItem
 }>(), {
   entryMode: 'main'
 })
@@ -541,13 +542,29 @@ const handleCancel = () => {
 }
 
 watch(
-  [() => props.modelValue, () => props.postId],
-  ([val, id]) => {
-    if (val && id) {
-      initData(id)
-      activeMediaIndex.value = 0
-      handleCancel()
-      return
+  [() => props.modelValue, () => props.postId, () => props.previewData],
+  ([val, id, preview]) => {
+    if (val) {
+      if (preview) {
+        post.value = preview
+        stats.value = {
+          like_count: 0,
+          collect_count: 0,
+          comment_count: 0,
+          view_count: 0,
+          is_liked: false,
+          is_collected: false
+        }
+        activeMediaIndex.value = 0
+        handleCancel()
+        return
+      }
+      if (id) {
+        initData(id)
+        activeMediaIndex.value = 0
+        handleCancel()
+        return
+      }
     }
     if (!val) {
       setTimeout(() => {
@@ -773,7 +790,7 @@ const formatFullDate = (time: string) => {
               </div>
 
               <button
-                  v-if="post.user_id !== userStore.userInfo?.user_id"
+                  v-if="!previewData && post.user_id !== userStore.userInfo?.user_id"
                   class="follow-btn"
                   :class="{ 'is-following': isFollowing }"
                   @click="handleFollow"
@@ -1056,6 +1073,7 @@ const formatFullDate = (time: string) => {
             </div>
 
             <footer class="interaction-bar"
+                    v-if="!previewData"
                     :class="{ 'is-expanded': isInputFocused || commentText || commentMedia.length }">
               <div class="input-section">
                 <img :src="userStore.userInfo?.avatar_url || defaultAvatar" class="my-avatar" alt="me"/>

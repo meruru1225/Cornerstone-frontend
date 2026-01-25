@@ -43,13 +43,10 @@ export function getSysboxListApi(params: PageParams) {
 }
 
 /**
- * 获取收件箱未读数量
+ * 获取收件箱未读数量 - SSE版本
  */
-export function getUnreadCountApi() {
-  return request({
-    url: '/sysbox/unread',
-    method: 'get'
-  })
+export function getUnreadCountSSE(): EventSource {
+  return new EventSource('/api/sysbox/unread')
 }
 
 /**

@@ -6,6 +6,9 @@ import {likePostApi, ActionType} from '../api/post-action'
 import {ElMessage} from 'element-plus'
 import {usePostCacheStore} from '../stores/postCache'
 import { extractPlainTextFromHtml } from '../utils/plainText'
+import {useUserStore} from "../stores/user.ts";
+
+const userStore = useUserStore()
 
 const props = defineProps<{
   post: PostItem
@@ -85,6 +88,7 @@ const getMediaStyle = computed(() => {
 
 // --- 业务逻辑 ---
 const handleLike = async () => {
+  if (!userStore.isLoggedIn) return ElMessage.warning('请先登录')
   const isLiked = !!props.post.is_liked
   const action = isLiked ? ActionType.CANCEL : ActionType.ADD
   props.post.is_liked = !isLiked
