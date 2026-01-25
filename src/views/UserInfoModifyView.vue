@@ -9,6 +9,7 @@ import {
   type UpdateUserInfoParams
 } from '../api/user'
 import {useUserStore} from '../stores/user'
+import {formatDateOnly} from '../utils/time'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -34,7 +35,7 @@ const initData = async () => {
     form.nickname = data.nickname
     form.bio = data.bio
     form.gender = data.gender
-    form.birthday = data.birthday || ''
+    form.birthday = formatDateOnly(data.birthday)
     form.region = data.region
     avatarPreview.value = data.avatar_url
   } catch (error) {
