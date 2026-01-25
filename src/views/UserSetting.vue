@@ -47,9 +47,7 @@ const pwdForm = reactive({ old_password: '', new_password: '', confirm: '' })
 const loadingPwd = ref(false)
 
 const handleUpdatePassword = async () => {
-  if (!pwdForm.old_password || !pwdForm.new_password) return ElMessage.warning('请填写完整密码信息')
-  if (pwdForm.new_password !== pwdForm.confirm) return ElMessage.warning('两次新密码输入不一致')
-  if (pwdForm.new_password.length < 6) return ElMessage.warning('新密码长度不能少于6位')
+  if (!pwdForm.new_password) return ElMessage.warning('请输入新密码')
 
   loadingPwd.value = true
   try {
@@ -58,9 +56,8 @@ const handleUpdatePassword = async () => {
       new_password: pwdForm.new_password
     })
     ElMessage.success('密码修改成功，请重新登录')
-    // 登出逻辑
-    userStore.logout()
-    router.push('/')
+    await userStore.logout()
+    await router.push('/')
   } catch (error: any) {
     ElMessage.error(error.message || '修改失败')
   } finally {
@@ -103,7 +100,7 @@ const handleUpdatePhone = async () => {
       token: phoneForm.code
     })
     ElMessage.success('手机号绑定成功')
-    userStore.fetchUserInfo()
+    await userStore.fetchUserInfo()
     phoneForm.new_phone = ''
     phoneForm.code = ''
   } catch (error: any) {
@@ -128,8 +125,8 @@ const handleCancelAccount = () => {
     try {
       await cancelAccountApi()
       ElMessage.success('账号已注销')
-      userStore.logout()
-      router.push('/')
+      await userStore.logout()
+      await router.push('/')
     } catch (error: any) {
       ElMessage.error(error.message || '注销失败')
     }
@@ -143,7 +140,9 @@ const goBack = () => router.back()
   <div class="setting-view">
     <div class="nav-header">
       <button class="back-link" @click="goBack">
-        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        <svg viewBox="0 0 24 24" width="20" height="20">
+          <path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
         返回个人主页
       </button>
     </div>
@@ -158,7 +157,8 @@ const goBack = () => router.back()
         <h3 class="section-title">修改用户名</h3>
         <div class="form-row">
           <div class="g-input-item flex-grow">
-            <input type="text" v-model="usernameForm.username" :placeholder="`当前: ${userStore?.userInfo?.username || '未设置'}`" />
+            <input type="text" v-model="usernameForm.username"
+                   :placeholder="`当前: ${userStore?.userInfo?.username || '未设置'}`"/>
           </div>
           <button class="btn-mini primary" :disabled="loadingUsername" @click="handleUpdateUsername">
             {{ loadingUsername ? '保存中...' : '修改' }}
@@ -168,14 +168,16 @@ const goBack = () => router.back()
 
       <section class="setting-section">
         <h3 class="section-title">安全密码</h3>
+        <p class="section-hint">如果未设置密码，则当前密码置空</p>
+
         <div class="g-input-item">
-          <input type="password" v-model="pwdForm.old_password" placeholder="当前密码" />
+          <input type="password" v-model="pwdForm.old_password" placeholder="当前密码"/>
         </div>
         <div class="g-input-item">
-          <input type="password" v-model="pwdForm.new_password" placeholder="新密码 (至少6位)" />
+          <input type="password" v-model="pwdForm.new_password" placeholder="新密码 (至少6位)"/>
         </div>
         <div class="g-input-item">
-          <input type="password" v-model="pwdForm.confirm" placeholder="确认新密码" />
+          <input type="password" v-model="pwdForm.confirm" placeholder="确认新密码"/>
         </div>
         <div class="action-right">
           <button class="g-main-btn sm-btn" :disabled="loadingPwd" @click="handleUpdatePassword">
@@ -187,10 +189,10 @@ const goBack = () => router.back()
       <section class="setting-section">
         <h3 class="section-title">绑定手机</h3>
         <div class="g-input-item">
-          <input type="text" v-model="phoneForm.new_phone" placeholder="新手机号码" />
+          <input type="text" v-model="phoneForm.new_phone" placeholder="新手机号码"/>
         </div>
         <div class="g-input-item sms-row">
-          <input type="text" v-model="phoneForm.code" placeholder="短信验证码" />
+          <input type="text" v-model="phoneForm.code" placeholder="短信验证码"/>
           <button class="code-btn" :disabled="countdown > 0" @click="sendCode">
             {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
           </button>
@@ -238,7 +240,10 @@ const goBack = () => router.back()
   transition: color 0.2s;
   padding: 0;
 }
-.back-link:hover { color: #00AEEC; }
+
+.back-link:hover {
+  color: #00AEEC;
+}
 
 .setting-card {
   background: #fff;
@@ -261,11 +266,20 @@ const goBack = () => router.back()
   margin-bottom: 8px;
 }
 
-.card-desc { color: #9499A0; font-size: 14px; }
+.card-desc {
+  color: #9499A0;
+  font-size: 14px;
+}
 
-/* 分区通用样式 */
 .setting-section {
   margin-bottom: 40px;
+}
+
+.section-hint {
+  font-size: 12px;
+  color: #9499A0;
+  margin-bottom: 12px;
+  padding-left: 12px;
 }
 
 .section-title {
@@ -293,7 +307,9 @@ const goBack = () => router.back()
   gap: 12px;
 }
 
-.flex-grow { flex: 1; }
+.flex-grow {
+  flex: 1;
+}
 
 .action-right {
   display: flex;
@@ -301,7 +317,6 @@ const goBack = () => router.back()
   margin-top: 10px;
 }
 
-/* 按钮样式微调 */
 .g-main-btn.sm-btn {
   width: auto;
   padding: 0 30px;
@@ -310,7 +325,7 @@ const goBack = () => router.back()
 }
 
 .btn-mini {
-  height: 48px; /* 与输入框等高 */
+  height: 48px;
   padding: 0 24px;
   border-radius: 12px;
   font-size: 14px;
@@ -325,6 +340,7 @@ const goBack = () => router.back()
   background: rgba(0, 174, 236, 0.1);
   color: #00AEEC;
 }
+
 .btn-mini.primary:hover:not(:disabled) {
   background: #00AEEC;
   color: #fff;
@@ -333,16 +349,16 @@ const goBack = () => router.back()
 .btn-mini.danger {
   background: rgba(255, 71, 87, 0.1);
   color: #FF4757;
-  height: 36px; /* 稍微小一点 */
+  height: 36px;
 }
+
 .btn-mini.danger:hover {
   background: #FF4757;
   color: #fff;
 }
 
-/* 短信验证码行 */
 .sms-row {
-  padding-right: 6px; /* 给按钮留点空间 */
+  padding-right: 6px;
 }
 
 .code-btn {
@@ -356,9 +372,12 @@ const goBack = () => router.back()
   border-left: 1px solid #eee;
   margin-left: 8px;
 }
-.code-btn:disabled { color: #ccc; cursor: not-allowed; }
 
-/* 危险区域 */
+.code-btn:disabled {
+  color: #ccc;
+  cursor: not-allowed;
+}
+
 .danger-zone {
   margin-top: 60px;
   padding-top: 30px;

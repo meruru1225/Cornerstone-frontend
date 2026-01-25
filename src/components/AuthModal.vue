@@ -2,7 +2,7 @@
 import {ref, reactive, computed} from 'vue'
 import {ElMessage} from 'element-plus'
 import {useUserStore} from '../stores/user'
-import {registerApi, sendCodeApi, forgetPasswordApi} from '../api/auth'
+import {registerApi, registerByPhoneApi, sendCodeApi, forgetPasswordApi} from '../api/auth'
 
 const props = defineProps({
   modelValue: Boolean
@@ -13,6 +13,7 @@ const userStore = useUserStore()
 
 const close = () => {
   emit('update:modelValue', false)
+  resetForm()
 }
 
 type Mode = 'login' | 'register' | 'forget'
@@ -24,6 +25,13 @@ const isPasswordFocus = ref(false)
 const isLoading = ref(false)
 const countdown = ref(0)
 const registerStep = ref(1)
+
+// 暂存手机号注册凭证
+const phoneRegData = reactive({
+  phone: '',
+  token: '',
+  remember: false
+})
 
 const formData = reactive({
   account: '',
@@ -37,8 +45,6 @@ const formData = reactive({
   bio: '',
   remember: false
 })
-
-// [新增] 格式化函数
 
 const isRegister = computed(() => currentMode.value === 'register')
 const isForget = computed(() => currentMode.value === 'forget')
@@ -60,17 +66,24 @@ const showMsg = (type: 'success' | 'warning' | 'error', message: string) => {
 
 const toggleMode = (mode: Mode) => {
   currentMode.value = mode
+  resetForm()
+}
+
+const resetForm = () => {
   isPasswordFocus.value = false
   registerStep.value = 1
   formData.password = ''
   formData.confirmPassword = ''
   formData.smsCode = ''
+  // 切换模式时清空临时数据
+  phoneRegData.phone = ''
+  phoneRegData.token = ''
+  phoneRegData.remember = false
 }
 
 const sendCode = async () => {
   if (!formData.account) return showMsg('warning', '请输入手机号')
   if (!/^1[3-9]\d{9}$/.test(formData.account)) return showMsg('warning', '请输入正确的手机号')
-
   if (countdown.value > 0) return
 
   try {
@@ -82,7 +95,7 @@ const sendCode = async () => {
       if (countdown.value <= 0) clearInterval(timer)
     }, 1000)
   } catch (error: any) {
-    showMsg('error', error.message || '发送失败，请稍后重试')
+    showMsg('error', error.message || '发送失败')
   }
 }
 
@@ -94,15 +107,30 @@ const handleSubmit = async () => {
 
     isLoading.value = true
     try {
-      await userStore.login({
+      const res = await userStore.login({
         account: formData.account,
         password: formData.password,
         smsCode: formData.smsCode,
         method: loginMethod.value,
         remember: formData.remember
       })
-      showMsg('success', '欢迎回来！登录成功')
-      close()
+
+      // 手机号未注册 -> 跳转注册流程
+      if (res && res.needRegister) {
+        showMsg('success', '手机号未注册，请完善资料')
+
+        // 保存凭证和状态
+        phoneRegData.phone = res.phone!
+        phoneRegData.token = res.token!
+        phoneRegData.remember = res.remember ?? formData.remember
+
+        // 跳转到注册页 Step 2
+        currentMode.value = 'register'
+        registerStep.value = 2
+      } else {
+        showMsg('success', '登录成功')
+        close()
+      }
     } catch (error: any) {
       showMsg('error', error.message || '登录失败')
     } finally {
@@ -115,7 +143,7 @@ const handleSubmit = async () => {
     if (!formData.account) return showMsg('warning', '请输入手机号')
     if (!formData.smsCode) return showMsg('warning', '请输入验证码')
     if (!formData.password) return showMsg('warning', '请输入新密码')
-    if (formData.password !== formData.confirmPassword) return showMsg('error', '两次密码输入不一致')
+    if (formData.password !== formData.confirmPassword) return showMsg('error', '两次密码不一致')
 
     isLoading.value = true
     try {
@@ -124,7 +152,7 @@ const handleSubmit = async () => {
         sms_code: formData.smsCode,
         new_password: formData.password
       })
-      showMsg('success', '密码重置成功，请重新登录')
+      showMsg('success', '密码重置成功，请登录')
       toggleMode('login')
     } catch (error: any) {
       showMsg('error', error.message || '重置失败')
@@ -136,30 +164,55 @@ const handleSubmit = async () => {
 
   if (currentMode.value === 'register') {
     if (registerStep.value === 1) {
-      if (!formData.account || !formData.password) return showMsg('warning', '请完善账号密码信息')
-      if (formData.password !== formData.confirmPassword) return showMsg('error', '两次密码输入不一致')
+      if (!formData.account || !formData.password) return showMsg('warning', '请输入账号密码')
+      if (formData.password !== formData.confirmPassword) return showMsg('error', '两次密码不一致')
       registerStep.value = 2
       return
     }
 
     if (registerStep.value === 2) {
-      if (!formData.nickname) {
-        return showMsg('warning', '给自己起个好听的名字吧')
-      }
+      if (!formData.nickname) return showMsg('warning', '请输入昵称')
 
       isLoading.value = true
+
       try {
-        await registerApi({
-          username: formData.account,
-          password: formData.password,
-          nickname: formData.nickname,
-          gender: formData.gender,
-          birthday: formData.birthday || undefined,
-          region: formData.region,
-          bio: formData.bio
-        })
-        showMsg('success', '注册成功！欢迎加入 Cornerstone')
-        toggleMode('login')
+        if (phoneRegData.token) {
+          await registerByPhoneApi({
+            phone: phoneRegData.phone,
+            phone_token: phoneRegData.token,
+            nickname: formData.nickname,
+            gender: formData.gender,
+            birthday: formData.birthday || '',
+            region: formData.region,
+            bio: formData.bio,
+            remember: phoneRegData.remember
+          })
+
+          try {
+            await userStore.refreshUser()
+            showMsg('success', '注册成功，已自动登录')
+            close()
+          } catch (e) {
+            showMsg('success', '注册成功，请重新登录')
+            const regPhone = phoneRegData.phone
+            toggleMode('login')
+            loginMethod.value = 'sms'
+            formData.account = regPhone
+          }
+        }
+        else {
+          await registerApi({
+            username: formData.account,
+            password: formData.password,
+            nickname: formData.nickname,
+            gender: formData.gender,
+            birthday: formData.birthday || undefined,
+            region: formData.region,
+            bio: formData.bio
+          })
+          showMsg('success', '注册成功，请登录')
+          toggleMode('login')
+        }
       } catch (error: any) {
         showMsg('error', error.message || '注册失败')
       } finally {
@@ -169,8 +222,14 @@ const handleSubmit = async () => {
   }
 }
 
+// 返回逻辑
 const prevStep = () => {
-  registerStep.value = 1
+  // 如果是手机号快捷注册进来的（直接在 Step 2），点返回等于放弃注册，回到登录页
+  if (phoneRegData.token) {
+    toggleMode('login')
+  } else {
+    registerStep.value = 1
+  }
 }
 </script>
 
@@ -244,17 +303,20 @@ const prevStep = () => {
                   <span v-else-if="currentMode === 'forget'">找回密码</span>
                   <span v-else>{{ registerStep === 1 ? '创建账号' : '完善资料' }}</span>
                 </h3>
+
                 <div class="login-type-switch" v-if="currentMode === 'login'">
                   <span :class="{ active: loginMethod === 'password' }"
                         @click="loginMethod = 'password'">密码登录</span>
                   <span class="divider">/</span>
                   <span :class="{ active: loginMethod === 'sms' }" @click="loginMethod = 'sms'">验证码登录</span>
                 </div>
-                <div class="step-indicator" v-if="currentMode === 'register'">
+
+                <div class="step-indicator" v-if="currentMode === 'register' && !phoneRegData.token">
                   <span :class="{ active: registerStep === 1 }">1</span>
                   <span class="dots">···</span>
                   <span :class="{ active: registerStep === 2 }">2</span>
                 </div>
+
                 <div class="login-type-switch" v-if="currentMode === 'forget'">
                   <span class="link-btn" @click="toggleMode('login')">返回登录</span>
                 </div>
@@ -285,7 +347,7 @@ const prevStep = () => {
                     </div>
 
                     <template
-                        v-if="(currentMode === 'login' && loginMethod === 'password') || currentMode === 'register' || currentMode === 'forget'">
+                        v-if="(currentMode === 'login' && loginMethod === 'password') || (currentMode === 'register' && registerStep === 1) || currentMode === 'forget'">
                       <div class="g-input-item">
                         <svg class="icon" viewBox="0 0 24 24">
                           <path fill="currentColor"
@@ -297,7 +359,8 @@ const prevStep = () => {
                       </div>
                     </template>
 
-                    <div class="g-input-item" v-if="currentMode === 'register' || currentMode === 'forget'">
+                    <div class="g-input-item"
+                         v-if="(currentMode === 'register' && registerStep === 1) || currentMode === 'forget'">
                       <svg class="icon" viewBox="0 0 24 24">
                         <path fill="currentColor"
                               d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7z"/>
@@ -309,7 +372,7 @@ const prevStep = () => {
 
                   <div class="options-row" v-if="currentMode === 'login'">
                     <label class="check-label">
-                      <input type="checkbox" v-model="formData.remember"> 
+                      <input type="checkbox" v-model="formData.remember">
                       <span>记住我</span>
                     </label>
                     <span class="link-btn" @click="toggleMode('forget')">忘记密码?</span>
@@ -365,7 +428,7 @@ const prevStep = () => {
                   </div>
 
                   <div class="options-row center">
-                    <span class="link-btn" @click="prevStep">返回上一步</span>
+                    <span class="link-btn" @click="prevStep">{{ phoneRegData.token ? '取消注册' : '返回上一步' }}</span>
                   </div>
                 </div>
               </div>

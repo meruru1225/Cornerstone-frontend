@@ -22,6 +22,17 @@ export interface RegisterParams {
   birthday?: string // YYYY-MM-DD
 }
 
+export interface RegisterByPhoneParams {
+  phone: string
+  phone_token: string
+  nickname: string
+  gender: number
+  birthday: string
+  region?: string
+  bio?: string
+  remember?: boolean
+}
+
 export interface ForgetPasswordParams {
   phone: string
   sms_code: string
@@ -69,6 +80,15 @@ export function logoutApi() {
 export function registerApi(data: RegisterParams) {
   return request({
     url: '/user/register',
+    method: 'post',
+    data
+  })
+}
+
+// 手机号注册
+export function registerByPhoneApi(data: RegisterByPhoneParams) {
+  return request({
+    url: '/user/register/phone',
     method: 'post',
     data
   })

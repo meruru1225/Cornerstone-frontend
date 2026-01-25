@@ -7,9 +7,24 @@ export const useUserStore = defineStore('user', () => {
   const userInfo = ref<CurrentUserInfo | null>(null)
   const isLoggedIn = ref(false)
   const roles = ref<string[]>([])
-  // userId 可以从 userInfo.user_id 获取，或者单独存，这里我们主要依赖 userInfo
-  
-  // 统一登录入口，根据 method 分发
+
+  // 统一刷新用户状态
+  const refreshUser = async () => {
+    try {
+      await fetchUserInfo()
+      await fetchUserRoles()
+      if (userInfo.value) {
+        isLoggedIn.value = true
+      }
+    } catch (error) {
+      console.warn('刷新用户状态失败', error)
+      userInfo.value = null
+      isLoggedIn.value = false
+      throw error
+    }
+  }
+
+  // 登录逻辑
   const login = async (payload: { account?: string, password?: string, smsCode?: string, method: 'password' | 'sms', remember?: boolean }) => {
     try {
       if (payload.method === 'password') {
@@ -20,18 +35,27 @@ export const useUserStore = defineStore('user', () => {
         })
       } else {
         // 短信登录
-        await loginByPhoneApi({
+        const res: any = await loginByPhoneApi({
           phone: payload.account || '',
           code: payload.smsCode || '',
           remember: payload.remember
         })
+
+        // 如果 is_reg 为 false，说明未注册
+        const data = res.data || res
+        if (data && typeof data.is_reg === 'boolean' && !data.is_reg) {
+          return {
+            needRegister: true,
+            token: data.token,
+            phone: payload.account,
+            remember: payload.remember // [修复]：透传记住我状态
+          }
+        }
       }
 
-      // 登录成功后获取用户信息
-      await fetchUserInfo()
-      await fetchUserRoles()
-      
-      isLoggedIn.value = true
+      // 正常登录成功，刷新状态
+      await refreshUser()
+      return { needRegister: false }
     } catch (error) {
       throw error
     }
@@ -43,27 +67,26 @@ export const useUserStore = defineStore('user', () => {
       userInfo.value = res.data || null
       isLoggedIn.value = true
     } catch (error) {
-      console.warn('获取用户信息失败，已降级为游客模式', error)
       userInfo.value = null
       isLoggedIn.value = false
+      throw error
     }
   }
 
   const fetchUserRoles = async () => {
-     try {
-       const res: any = await getUserRolesApi()
-       roles.value = res.data || []
-     } catch (error) {
-       console.warn('获取用户角色失败', error)
-       roles.value = []
-     }
+    try {
+      const res: any = await getUserRolesApi()
+      roles.value = res.data || []
+    } catch (error) {
+      roles.value = []
+    }
   }
 
   const logout = async () => {
     try {
       await logoutApi()
     } catch (error) {
-      console.warn('登出接口调用失败', error)
+      console.warn('登出失败', error)
     } finally {
       // 无论接口是否成功，前端都要清除状态
       userInfo.value = null
@@ -77,6 +100,7 @@ export const useUserStore = defineStore('user', () => {
     isLoggedIn,
     roles,
     login,
+    refreshUser,
     fetchUserInfo,
     fetchUserRoles,
     logout
