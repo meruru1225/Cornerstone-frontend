@@ -4,7 +4,7 @@ import {useRoute, useRouter} from 'vue-router'
 import PostGrid from '../components/PostGrid.vue'
 import UserGrid from '../components/UserGrid.vue'
 import PostDetail from '../components/PostDetail.vue'
-import {searchPostsApi, type PostItem} from '../api/post'
+import {searchPostsApi, type PostItem, getSearchSuggestionsApi} from '../api/post'
 import {searchUserApi, type UserHomeInfo} from '../api/user'
 import {searchAgentApi} from '../api/agent'
 import MarkdownIt from 'markdown-it'
@@ -31,6 +31,55 @@ const router = useRouter()
 // --- 搜索状态 ---
 const keyword = ref('')
 const searchType = ref<'post' | 'user'>('post')
+
+// --- 搜索建议状态 ---
+const suggestions = ref<string[]>([])
+const showSuggestions = ref(false)
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+const handleSearchInput = () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  const val = keyword.value.trim()
+  if (!val) {
+    suggestions.value = []
+    showSuggestions.value = false
+    return
+  }
+  
+  searchTimer = setTimeout(async () => {
+    try {
+      const res: any = await getSearchSuggestionsApi(val)
+      if (res.code === 200 && Array.isArray(res.data)) {
+        suggestions.value = res.data
+        showSuggestions.value = res.data.length > 0
+      } else {
+        suggestions.value = []
+        showSuggestions.value = false
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }, 300)
+}
+
+const handleSuggestionClick = (item: string) => {
+  keyword.value = item
+  showSuggestions.value = false
+  handleSearch()
+}
+
+const handleBlur = () => {
+  // 延迟关闭，以便点击建议项生效
+  setTimeout(() => {
+    showSuggestions.value = false
+  }, 200)
+}
+
+const handleFocus = () => {
+  if (keyword.value.trim() && suggestions.value.length > 0) {
+    showSuggestions.value = true
+  }
+}
 
 // --- 数据状态 ---
 const posts = ref<PostItem[]>([])
@@ -195,12 +244,18 @@ onUnmounted(() => {
     <header class="sticky-header">
       <div class="header-inner">
         <div class="g-search-container">
-          <div class="g-search-capsule">
+          <div 
+            class="g-search-capsule"
+            :class="{ 'is-active': showSuggestions && suggestions.length > 0 }"
+          >
             <input
                 type="text"
                 v-model="keyword"
                 placeholder="搜索灵感、用户或内容..."
                 @keyup.enter="handleSearch"
+                @input="handleSearchInput"
+                @focus="handleFocus"
+                @blur="handleBlur"
             />
             <button class="g-search-btn" @click="handleSearch">
               <svg viewBox="0 0 24 24" width="20" height="20">
@@ -209,6 +264,23 @@ onUnmounted(() => {
               </svg>
             </button>
           </div>
+
+          <Transition name="suggestion">
+            <div v-if="showSuggestions && suggestions.length > 0" class="search-suggestions">
+              <div
+                  v-for="(item, index) in suggestions"
+                  :key="index"
+                  class="suggestion-item"
+                  @click="handleSuggestionClick(item)"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" class="suggestion-icon">
+                  <path fill="currentColor"
+                        d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                </svg>
+                <span>{{ item }}</span>
+              </div>
+            </div>
+          </Transition>
         </div>
 
         <div class="search-tabs">

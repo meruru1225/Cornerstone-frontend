@@ -141,6 +141,18 @@ export function searchMyPostsApi(keyword: string) {
   })
 }
 
+/**
+ * 获取搜索建议
+ * @param keyword 关键词
+ */
+export function getSearchSuggestionsApi(keyword: string) {
+  return request({
+    url: '/posts/suggestion',
+    method: 'get',
+    params: { keyword }
+  })
+}
+
 export function getLatestPostsApi() {
   return request({
     url: '/posts/lastest',

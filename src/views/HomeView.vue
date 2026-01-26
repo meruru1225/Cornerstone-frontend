@@ -7,6 +7,7 @@ import {
   getRecommendPostsApi,
   getPostsByTagApi,
   getLatestPostsApi,
+  getSearchSuggestionsApi,
   type PostItem
 } from '../api/post'
 
@@ -23,6 +24,9 @@ const tags = [
 
 const activeTagId = ref(0)
 const searchQuery = ref('')
+const suggestions = ref<string[]>([])
+const showSuggestions = ref(false)
+const searchInputRef = ref<HTMLInputElement | null>(null)
 const posts = ref<PostItem[]>([])
 const loading = ref(true)
 
@@ -50,8 +54,55 @@ const scroll = (direction: 'left' | 'right') => {
   })
 }
 
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+const handleSearchInput = () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  const val = searchQuery.value.trim()
+  if (!val) {
+    suggestions.value = []
+    showSuggestions.value = false
+    return
+  }
+  
+  searchTimer = setTimeout(async () => {
+    try {
+      const res: any = await getSearchSuggestionsApi(val)
+      if (res.code === 200 && Array.isArray(res.data)) {
+        suggestions.value = res.data
+        showSuggestions.value = res.data.length > 0
+      } else {
+        suggestions.value = []
+        showSuggestions.value = false
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }, 300)
+}
+
+const handleSuggestionClick = (item: string) => {
+  searchQuery.value = item
+  showSuggestions.value = false
+  handleSearchJump()
+}
+
+const handleBlur = () => {
+  // 延迟关闭，以便点击建议项生效
+  setTimeout(() => {
+    showSuggestions.value = false
+  }, 200)
+}
+
+const handleFocus = () => {
+  if (searchQuery.value.trim() && suggestions.value.length > 0) {
+    showSuggestions.value = true
+  }
+}
+
 const handleSearchJump = () => {
   if (!searchQuery.value.trim()) return
+  showSuggestions.value = false
   router.push({
     path: '/search',
     query: {q: searchQuery.value.trim()}
@@ -102,12 +153,19 @@ onUnmounted(() => {
   <div class="home-page">
     <header class="home-header">
       <div class="g-search-container">
-        <div class="g-search-capsule">
+        <div 
+          class="g-search-capsule"
+          :class="{ 'is-active': showSuggestions && suggestions.length > 0 }"
+        >
           <input
+              ref="searchInputRef"
               type="text"
               v-model="searchQuery"
               placeholder="在 Cornerstone 发现灵感..."
               @keyup.enter="handleSearchJump"
+              @input="handleSearchInput"
+              @focus="handleFocus"
+              @blur="handleBlur"
           />
           <button class="g-search-btn" @click="handleSearchJump">
             <svg viewBox="0 0 24 24" width="20" height="20">
@@ -116,6 +174,23 @@ onUnmounted(() => {
             </svg>
           </button>
         </div>
+
+        <Transition name="suggestion">
+          <div v-if="showSuggestions && suggestions.length > 0" class="search-suggestions">
+            <div
+                v-for="(item, index) in suggestions"
+                :key="index"
+                class="suggestion-item"
+                @click="handleSuggestionClick(item)"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" class="suggestion-icon">
+                <path fill="currentColor"
+                      d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+              </svg>
+              <span>{{ item }}</span>
+            </div>
+          </div>
+        </Transition>
       </div>
     </header>
 

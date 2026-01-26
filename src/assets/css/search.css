@@ -1,8 +1,9 @@
 .g-search-container {
+    position: relative;
     width: 100%;
     max-width: 600px;
-    margin: 0 auto;
 }
+
 
 .g-search-capsule {
     display: flex;
@@ -10,7 +11,8 @@
     border-radius: 24px;
     padding: 6px 6px 6px 20px;
     border: 2px solid transparent;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1);
+    transition: background 0.3s, border-color 0.3s, box-shadow 0.3s, transform 0.3s, border-radius 0.3s;
+    transition-timing-function: cubic-bezier(0.25, 0.8, 0.5, 1);
 }
 
 .g-search-capsule:focus-within {
@@ -50,4 +52,65 @@
 
 .g-search-btn:hover {
     background: #0096cc;
+}
+
+/* Suggestion Styles */
+.suggestion-enter-active,
+.suggestion-leave-active {
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transform-origin: top center;
+}
+
+.suggestion-enter-from,
+.suggestion-leave-to {
+  opacity: 0;
+  transform: translateY(-10px) scaleY(0.95);
+}
+
+.g-search-capsule.is-active {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  background: #fff;
+  border: 2px solid #00AEEC !important;
+  border-bottom: none !important;
+  padding-bottom: 8px !important;
+  box-shadow: none !important;
+  transform: none !important;
+  z-index: 101;
+}
+
+.search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  border: 2px solid #00AEEC;
+  border-top: none;
+  border-radius: 0 0 24px 24px;
+  box-shadow: 0 8px 24px rgba(0, 174, 236, 0.15);
+  margin-top: 0;
+  z-index: 100;
+  overflow: hidden;
+  padding: 8px 0;
+  box-sizing: border-box;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: #18191C;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.suggestion-item:hover {
+  background: #F4F6F8;
+}
+
+.suggestion-icon {
+  margin-right: 10px;
+  color: #9499A0;
 }
