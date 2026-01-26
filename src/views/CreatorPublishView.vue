@@ -71,15 +71,23 @@ const resetForm = async () => {
   await setEditorHtml('')
 }
 
+const cleanMediaUrl = (url: string): string => {
+  if (!url) return ''
+  if (!url.startsWith('http')) return url
+  // 提取日期开始的路径，例如 2026/01/27/xxx.jpg
+  const match = url.match(/(\d{4}\/\d{2}\/\d{2}\/.+)/)
+  return (match && match[1]) || url
+}
+
 const toPayload = (): PostMediaPayload[] =>
   mediaList.value.map(media => ({
-    url: media.url,
+    url: cleanMediaUrl(media.url),
     mime_type: media.mime || undefined,
     width: media.width,
     height: media.height,
     duration: media.duration,
     cover_url: media.mime?.includes('video')
-      ? (media.coverUrl || `${media.url}?vframe/jpg/offset/1`)
+      ? (media.coverUrl ? cleanMediaUrl(media.coverUrl) : `${cleanMediaUrl(media.url)}?vframe/jpg/offset/1`)
       : undefined
   }))
 
@@ -715,7 +723,6 @@ const handlePreview = async () => {
   }
   const safeContent = sanitizeHtml(rawContent)
   const safePlain = extractPlainTextFromHtml(safeContent)
-  const payload = toPayload()
 
   // 构造预览数据
   previewData.value = {

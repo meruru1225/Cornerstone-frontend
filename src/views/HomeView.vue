@@ -26,7 +26,6 @@ const activeTagId = ref(0)
 const searchQuery = ref('')
 const suggestions = ref<string[]>([])
 const showSuggestions = ref(false)
-const searchInputRef = ref<HTMLInputElement | null>(null)
 const posts = ref<PostItem[]>([])
 const loading = ref(true)
 
