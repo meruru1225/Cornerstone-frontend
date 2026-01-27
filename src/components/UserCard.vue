@@ -39,7 +39,7 @@ const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726
     <div class="info-wrapper">
       <div class="top-row">
         <span class="nickname" v-html="user.nickname"></span>
-        <span class="gender-badge" v-if="user.gender !== 0">
+        <span class="gender-badge" v-if="user.gender === 1 || user.gender === 2">
           {{ user.gender === 1 ? '♂' : '♀' }}
         </span>
       </div>
