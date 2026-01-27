@@ -2,6 +2,8 @@
 import {ref, onMounted, reactive} from 'vue'
 import {useRouter} from 'vue-router'
 import {ElMessage} from 'element-plus'
+import 'vue-cropper/dist/index.css'
+import VueCropper from 'vue-cropper/lib/vue-cropper.vue'
 import {
   getUserInfoApi,
   updateUserInfoApi,
@@ -16,8 +18,24 @@ const userStore = useUserStore()
 
 const loading = ref(false)
 const saving = ref(false)
-const avatarFile = ref<File | null>(null)
 const avatarPreview = ref('')
+
+// Cropper state
+const showCropper = ref(false)
+const cropperRef = ref()
+const avatarInputRef = ref<HTMLInputElement | null>(null)
+const uploadingAvatar = ref(false)
+const cropperOptions = reactive({
+  img: '',
+  autoCrop: true,
+  autoCropWidth: 200,
+  autoCropHeight: 200,
+  fixed: true,
+  fixedNumber: [1, 1],
+  centerBox: true,
+  infoTrue: true,
+  outputType: 'png'
+})
 
 const form = reactive({
   nickname: '',
@@ -49,17 +67,58 @@ const handleAvatarChange = (e: Event) => {
   const input = e.target as HTMLInputElement
   if (input.files && input.files[0]) {
     const file = input.files[0]
-    if (file.size > 2 * 1024 * 1024) {
-      ElMessage.warning('头像大小不能超过 2MB')
+    if (file.size > 5 * 1024 * 1024) {
+      ElMessage.warning('图片大小不能超过 5MB')
       return
     }
-    avatarFile.value = file
-    avatarPreview.value = URL.createObjectURL(file)
+    
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      cropperOptions.img = evt.target?.result as string
+      showCropper.value = true
+    }
+    reader.readAsDataURL(file)
+    // Clear input value after selection to allow re-selecting same file
+    // input.value = '' // Moved to dialog close or after read
   }
 }
 
+const handleCropClose = () => {
+  showCropper.value = false
+  if (avatarInputRef.value) {
+    avatarInputRef.value.value = ''
+  }
+}
+
+const handleCropConfirm = () => {
+  if (!cropperRef.value) return
+  cropperRef.value.getCropBlob(async (blob: Blob) => {
+    if (!blob) return
+    uploadingAvatar.value = true
+    try {
+      const formData = new FormData()
+      formData.append('file', blob, 'avatar.png')
+      await uploadAvatarApi(formData)
+      ElMessage.success('头像更新成功')
+      handleCropClose()
+      
+      // Update store and local view
+      await userStore.fetchUserInfo()
+      // Refresh only avatar url to avoid overwriting form data
+      const res: any = await getUserInfoApi()
+      if (res?.data?.avatar_url) {
+        avatarPreview.value = res.data.avatar_url
+      }
+    } catch (error: any) {
+      ElMessage.error(error.message || '头像上传失败')
+    } finally {
+      uploadingAvatar.value = false
+    }
+  })
+}
+
 const triggerAvatarInput = () => {
-  document.getElementById('avatar-input')?.click()
+  avatarInputRef.value?.click()
 }
 
 const handleSave = async () => {
@@ -69,12 +128,6 @@ const handleSave = async () => {
   }
   saving.value = true
   try {
-    if (avatarFile.value) {
-      const formData = new FormData()
-      formData.append('file', avatarFile.value)
-      await uploadAvatarApi(formData)
-    }
-
     const submitData: UpdateUserInfoParams = {
       ...form,
       birthday: form.birthday || undefined
@@ -135,7 +188,13 @@ onMounted(() => {
               </svg>
             </div>
           </div>
-          <input type="file" id="avatar-input" accept="image/*" @change="handleAvatarChange" hidden/>
+          <input 
+            type="file" 
+            ref="avatarInputRef" 
+            accept="image/*" 
+            @change="handleAvatarChange" 
+            hidden
+          />
           <div class="avatar-tip">点击更换头像</div>
         </div>
 
@@ -196,6 +255,42 @@ onMounted(() => {
           <button class="g-main-btn" @click="handleSave" :disabled="saving">
             <span v-if="saving" class="spinner-small"></span>
             {{ saving ? '保存中...' : '保存修改' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Avatar Cropper Dialog -->
+    <div v-if="showCropper" class="cropper-modal-overlay">
+      <div class="cropper-modal">
+        <div class="cropper-header">
+          <h3>编辑头像</h3>
+          <button class="close-btn" @click="handleCropClose">×</button>
+        </div>
+        <div class="cropper-content">
+          <VueCropper
+            ref="cropperRef"
+            :img="cropperOptions.img"
+            :outputSize="1"
+            :outputType="cropperOptions.outputType"
+            :info="true"
+            :full="false"
+            :canMove="true"
+            :canMoveBox="true"
+            :fixedBox="false"
+            :original="false"
+            :autoCrop="cropperOptions.autoCrop"
+            :autoCropWidth="cropperOptions.autoCropWidth"
+            :autoCropHeight="cropperOptions.autoCropHeight"
+            :centerBox="cropperOptions.centerBox"
+            :fixed="cropperOptions.fixed"
+            :fixedNumber="cropperOptions.fixedNumber"
+          ></VueCropper>
+        </div>
+        <div class="cropper-footer">
+          <button class="cancel-btn" @click="handleCropClose" :disabled="uploadingAvatar">取消</button>
+          <button class="confirm-btn" @click="handleCropConfirm" :disabled="uploadingAvatar">
+            {{ uploadingAvatar ? '上传中...' : '确认并上传' }}
           </button>
         </div>
       </div>
@@ -401,5 +496,101 @@ onMounted(() => {
   100% {
     transform: rotate(360deg);
   }
+}
+
+/* Cropper Modal Styles */
+.cropper-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.cropper-modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+}
+
+.cropper-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cropper-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: #999;
+  cursor: pointer;
+}
+
+.cropper-content {
+  height: 400px;
+  background: #f0f0f0;
+}
+
+.cropper-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.cancel-btn {
+  padding: 8px 20px;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #666;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.cancel-btn:hover {
+  background: #f9f9f9;
+}
+
+.confirm-btn {
+  padding: 8px 20px;
+  border: none;
+  background: #00AEEC;
+  color: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.confirm-btn:hover {
+  background: #009CD6;
+}
+
+.confirm-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
 }
 </style>

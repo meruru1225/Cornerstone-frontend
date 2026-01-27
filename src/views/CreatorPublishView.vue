@@ -86,8 +86,8 @@ const toPayload = (): PostMediaPayload[] =>
     width: media.width,
     height: media.height,
     duration: media.duration,
-    cover_url: media.mime?.includes('video')
-      ? (media.coverUrl ? cleanMediaUrl(media.coverUrl) : `${cleanMediaUrl(media.url)}?vframe/jpg/offset/1`)
+    cover_url: (media.mime?.includes('video') && media.coverUrl)
+      ? cleanMediaUrl(media.coverUrl)
       : undefined
   }))
 

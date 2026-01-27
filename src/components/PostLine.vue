@@ -38,10 +38,17 @@ const isImage = computed(() => mediaType.value.includes('image'))
 
 const coverUrl = computed(() => {
   if (!firstMedia.value) return ''
-  if (isVideo.value) return firstMedia.value.cover_url || `${firstMedia.value.url}?vframe/jpg/offset/1`
+  if (isVideo.value) return firstMedia.value.cover_url || ''
   if (isImage.value) return firstMedia.value.url
   return ''
 })
+
+const videoUrl = computed(() => {
+  if (isVideo.value && firstMedia.value) return firstMedia.value.url
+  return ''
+})
+
+const shouldShowVideo = computed(() => isVideo.value && !coverUrl.value && !!videoUrl.value)
 
 const hasCover = computed(() => !!coverUrl.value)
 
@@ -107,8 +114,19 @@ const handleReject = (event: MouseEvent) => {
 
 <template>
   <div class="post-line" :class="{ selected }" @click="handleSelect">
-    <div class="cover" :class="{ placeholder: !hasCover }">
+    <div class="cover" :class="{ placeholder: !hasCover && !shouldShowVideo }">
       <img v-if="coverUrl" :src="coverUrl" alt="cover" class="cover-img" />
+      <video
+        v-else-if="shouldShowVideo"
+        :src="videoUrl"
+        class="cover-img"
+        muted
+        loop
+        playsinline
+        preload="metadata"
+        @mouseenter="(e) => (e.target as HTMLVideoElement).play()"
+        @mouseleave="(e) => (e.target as HTMLVideoElement).pause()"
+      ></video>
       <div v-else class="cover-placeholder">
         <div class="placeholder-title">{{ placeholderText || '文字内容' }}</div>
         <div class="placeholder-sub">文字帖子</div>
