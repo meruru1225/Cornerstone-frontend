@@ -11,10 +11,6 @@ export const usePostCacheStore = defineStore('post-cache', () => {
         if (!Number.isFinite(postId)) return
         const idStr = postId.toString()
 
-        if (!detailCache.has(postId)) {
-            detailCache.set(postId, getPostDetailApi(idStr))
-        }
-
         if (!commentsCache.has(postId)) {
             commentsCache.set(postId, getPostCommentsApi(idStr, { page: 1, page_size: 50 }))
         }
@@ -22,7 +18,8 @@ export const usePostCacheStore = defineStore('post-cache', () => {
 
     const getDetail = (postId: number) => {
         if (!detailCache.has(postId)) {
-            prefetch(postId)
+            const idStr = postId.toString()
+            detailCache.set(postId, getPostDetailApi(idStr))
         }
         return detailCache.get(postId)!
     }
