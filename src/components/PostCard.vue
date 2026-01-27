@@ -162,7 +162,6 @@ const handleUserClick = () => {
   border-radius: 12px;
   overflow: hidden;
   break-inside: avoid;
-  margin-bottom: 20px;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
