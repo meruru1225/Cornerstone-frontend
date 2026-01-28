@@ -89,7 +89,8 @@ export const markMsgReadApi = (data: { conversation_id: number; sequence: number
 // --- WebSocket 客户端 ---
 class IMClient {
     private ws: WebSocket | null = null
-    private baseUrl = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8080/api/im`
+    private baseUrl = import.meta.env.VITE_WS_URL ||
+        `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/im`
     private handlers: Set<(data: any) => void> = new Set()
     private reconnectTimer: number | null = null
     private isConnecting = false

@@ -689,11 +689,26 @@ const handleSelectionChange = () => {
 
 const wordCount = computed(() => contentText.value.length)
 const draftTags = computed(() => {
-  const text = contentText.value.trim()
+  const text = contentText.value
   if (!text) return []
-  const match = text.match(/(?:^|\s)(#\S+(?:\s+#\S+)*)\s*$/)
-  if (!match?.[1]) return []
-  return match[1].split(/\s+/).filter(Boolean)
+  
+  const tagRegex = /#(\S+)/g
+  const matches = text.matchAll(tagRegex)
+  const tagSet = new Set<string>()
+  const tags: string[] = []
+
+  for (const match of matches) {
+    if (match[1]) {
+      let tagName = match[1]
+      tagName = tagName.replace(/^[.,，。!?！？]+|[.,，。!?！？]+$/g, '')
+      
+      if (tagName && !tagSet.has(tagName)) {
+        tagSet.add(tagName)
+        tags.push('#' + tagName)
+      }
+    }
+  }
+  return tags
 })
 
 const handlePreview = async () => {

@@ -22,6 +22,7 @@ export function uploadMediaApi(file: File) {
     url: '/media/upload',
     method: 'post',
     data: formData,
+    timeout: 60000,
     headers: {
       'Content-Type': 'multipart/form-data'
     }
